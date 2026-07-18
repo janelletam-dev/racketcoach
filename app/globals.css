@@ -1,26 +1,161 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-pixel: var(--font-pixel);
+  --font-term: var(--font-term);
+
+  --color-rc-violet: #5b21b6;
+  --color-rc-purple: #7c3aed;
+  --color-rc-fuchsia: #c026d3;
+  --color-rc-magenta: #db2777;
+  --color-rc-pink: #ec4899;
+  --color-rc-amber: #f59e0b;
+  --color-rc-gold: #fbbf24;
+  --color-rc-orange: #fb923c;
+  --color-rc-indigo: #4f46e5;
+
+  --color-rc-ink: #20233a;
+  --color-rc-muted: #6b7280;
+  --color-rc-card: #f8f8fc;
+  --color-rc-line: #d3d6ea;
+  --color-rc-row: #eef0f8;
+  --color-rc-rowhover: #e5e8f6;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--color-rc-ink);
+  background-color: #7c3aed;
+  /* halftone dot texture layered over a diagonal arcade gradient */
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.13) 1px, transparent 1.5px),
+    linear-gradient(
+      150deg,
+      #4c1d95 0%,
+      #7c3aed 24%,
+      #c026d3 50%,
+      #ec4899 72%,
+      #fb923c 100%
+    );
+  background-size: 6px 6px, 100% 100%;
+  background-attachment: fixed;
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Pixel wordmark with a hard extruded shadow */
+.rc-wordmark {
+  font-family: var(--font-pixel), monospace;
+  color: var(--color-rc-gold);
+  text-shadow:
+    2px 2px 0 #7c3aed,
+    4px 4px 0 #4c1d95,
+    5px 5px 0 rgba(0, 0, 0, 0.28);
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+/* Pixel heading, lighter treatment */
+.rc-pixel {
+  font-family: var(--font-pixel), monospace;
+  line-height: 1.4;
+}
+
+/* Terminal font for labels, stats, numbers */
+.rc-term {
+  font-family: var(--font-term), monospace;
+}
+
+.rc-label {
+  font-family: var(--font-term), monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 1.05rem;
+  color: var(--color-rc-muted);
+}
+
+/* Retro pushable button */
+.rc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--font-pixel), monospace;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  background: var(--color-rc-indigo);
+  border: 2px solid #1e1b4b;
+  padding: 0.85rem 1.3rem;
+  box-shadow: 4px 4px 0 #1e1b4b;
+  transition: transform 0.05s ease, box-shadow 0.05s ease, background 0.12s ease;
+  cursor: pointer;
+  text-decoration: none;
+}
+.rc-btn:hover {
+  background: #6366f1;
+}
+.rc-btn:active {
+  transform: translate(4px, 4px);
+  box-shadow: 0 0 0 #1e1b4b;
+}
+.rc-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.rc-btn-amber {
+  background: var(--color-rc-amber);
+  color: #3b2708;
+  border-color: #7c4a03;
+  box-shadow: 4px 4px 0 #7c4a03;
+}
+.rc-btn-amber:hover {
+  background: var(--color-rc-gold);
+}
+.rc-btn-amber:active {
+  box-shadow: 0 0 0 #7c4a03;
+}
+
+.rc-btn-ghost {
+  background: transparent;
+  color: #ffffff;
+  border-color: #ffffff;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.25);
+}
+.rc-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* White content card */
+.rc-card {
+  background: var(--color-rc-card);
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow:
+    0 18px 40px -12px rgba(30, 20, 60, 0.45),
+    0 0 0 1px rgba(30, 20, 60, 0.04);
+}
+
+/* Small stat tile inside a card */
+.rc-tile {
+  background: var(--color-rc-row);
+  border: 1px dashed var(--color-rc-line);
+  border-radius: 14px;
+}
+
+/* Dashed divider that matches the reference table rules */
+.rc-divider {
+  border-bottom: 2px dashed var(--color-rc-line);
+}
+
+/* Pixel-crisp rendering for small pixel text and images */
+.rc-crisp {
+  image-rendering: pixelated;
+  -webkit-font-smoothing: none;
 }

@@ -33,6 +33,14 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# local SQLite database (created by db:migrate/db:seed). Do not commit.
+racketcoach.db
+racketcoach.db-shm
+racketcoach.db-wal
+
+# python bytecode from modal_app.py
+__pycache__/
+
 # vercel
 .vercel
 

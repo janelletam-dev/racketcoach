@@ -1,0 +1,85 @@
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/session";
+import { getUserPairings } from "@/lib/queries";
+import { db } from "@/lib/db";
+import { pairings } from "@/lib/db/schema";
+import { generateCode } from "@/lib/code";
+import { Header } from "@/app/components/header";
+import { Card, SectionLabel, PixelLink, Badge } from "@/app/components/ui";
+import { Qr } from "@/app/components/qr";
+
+export default async function PairPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ code?: string }>;
+}) {
+  const user = await getCurrentUser();
+  if (!user) redirect("/signin");
+
+  const { code: incoming } = await searchParams;
+
+  let activeCode: string;
+  let justLinked = false;
+
+  if (incoming) {
+    // Claim the scanned code for this user (create it if the board's row
+    // does not exist yet). Idempotent upsert.
+    activeCode = incoming.toUpperCase();
+    await db
+      .insert(pairings)
+      .values({ code: activeCode, userId: user.id! })
+      .onConflictDoUpdate({
+        target: pairings.code,
+        set: { userId: user.id! },
+      });
+    justLinked = true;
+  } else {
+    // No code in the URL: show the user's existing code, or mint one.
+    const existing = await getUserPairings(user.id!);
+    if (existing.length > 0) {
+      activeCode = existing[0].code;
+    } else {
+      activeCode = generateCode();
+      await db.insert(pairings).values({ code: activeCode, userId: user.id! });
+    }
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const qrValue = `${appUrl}/pair?code=${activeCode}`;
+
+  return (
+    <main className="flex-1 w-full max-w-2xl mx-auto px-5 sm:px-8 py-10">
+      <Header />
+
+      <Card className="text-center">
+        {justLinked ? (
+          <div className="mb-4">
+            <Badge tone="amber">Paddle linked</Badge>
+          </div>
+        ) : (
+          <SectionLabel>Connect a paddle</SectionLabel>
+        )}
+
+        <div className="rc-wordmark text-4xl sm:text-5xl !text-rc-indigo [text-shadow:2px_2px_0_#c7d2fe] tracking-widest my-5">
+          {activeCode}
+        </div>
+
+        <div className="flex justify-center my-6">
+          <Qr value={qrValue} />
+        </div>
+
+        <p className="text-rc-muted text-sm max-w-md mx-auto">
+          {justLinked
+            ? "This paddle is now linked to your account. Sessions from the coach station will show up on your dashboard."
+            : "On the coach station, scan this code from your phone to link the paddle. The station can also send sessions using this code."}
+        </p>
+
+        <div className="mt-7 pt-5 border-t-2 border-dashed border-rc-line">
+          <PixelLink href="/dashboard" variant="indigo">
+            Go to dashboard
+          </PixelLink>
+        </div>
+      </Card>
+    </main>
+  );
+}
