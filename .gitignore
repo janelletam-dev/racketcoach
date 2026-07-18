@@ -33,6 +33,11 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# Wi-Fi credentials for the board (real values live only on your machine).
+# Covers any depth so it still catches secrets.h if an IDE relocates the
+# sketch into its own subfolder (e.g. firmware/sketch/secrets.h).
+firmware/**/secrets.h
+
 # local SQLite database (created by db:migrate/db:seed). Do not commit.
 racketcoach.db
 racketcoach.db-shm
