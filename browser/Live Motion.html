@@ -1,1 +1,141 @@
-See Live Motion tab
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Racket Motion</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: transparent; color: #e2ddd8; min-height: 100vh; padding: 20px; }
+  .root { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  .header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  .header h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: .02em; color: #f0ece6; }
+  .pill { display: flex; align-items: center; gap: 7px; font-size: .75rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: #888; background: #1e1c1a; border: 1px solid #2e2b28; border-radius: 99px; padding: 5px 14px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #444; transition: background .3s; }
+  .dot.live { background: #4ade80; box-shadow: 0 0 6px #4ade8088; }
+  .readouts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  @media (max-width: 640px) { .readouts { grid-template-columns: repeat(3, 1fr); } }
+  .card { background: #1a1816; border: 1px solid #2a2724; border-radius: 12px; padding: 16px 14px 14px; display: flex; flex-direction: column; gap: 4px; min-height: 100px; }
+  .card .label { font-size: .68rem; font-weight: 500; letter-spacing: .09em; text-transform: uppercase; color: #666; }
+  .card .value { font-family: 'DM Mono', 'Courier New', monospace; font-size: 1.55rem; font-weight: 600; color: #f0ece6; line-height: 1.1; }
+  .card .unit { font-size: .65rem; color: #555; letter-spacing: .05em; }
+  .card.accel .value { color: #60a5fa; }
+  .card.gyro .value { color: #f97316; }
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 580px) { .charts { grid-template-columns: 1fr; } }
+  .chart-card { background: #1a1816; border: 1px solid #2a2724; border-radius: 12px; padding: 16px; height: 220px; position: relative; }
+  .chart-card .chart-title { font-size: .7rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: #666; margin-bottom: 10px; }
+  .chart-card canvas { width: 100% !important; height: calc(100% - 26px) !important; }
+  .section-label { font-size: .67rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #555; padding: 4px 2px 0; }
+  .orient-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  @media (max-width: 640px) { .orient-row { grid-template-columns: repeat(2, 1fr); } }
+  .card.orient .value { color: #34d399; }
+  .card.dom .value { color: #a78bfa; }
+  .pid-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  @media (max-width: 640px) { .pid-row { grid-template-columns: repeat(3, 1fr); } }
+  .card.pid-err .value { color: #f0ece6; }
+  .card.pid-p .value { color: #60a5fa; }
+  .card.pid-i .value { color: #f97316; }
+  .card.pid-d .value { color: #facc15; }
+  .card.pid-out .value { color: #f472b6; font-size: 1.75rem; }
+  .pid-tune { background: #1a1816; border: 1px solid #2a2724; border-radius: 12px; padding: 14px 20px; display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+  .pid-tune label { font-size: .72rem; color: #888; display: flex; flex-direction: column; gap: 4px; }
+  .pid-tune span { font-size: .95rem; font-weight: 600; color: #f0ece6; font-family: monospace; }
+  .pid-tune input[type=range] { width: 120px; accent-color: #60a5fa; }
+  .chart-card.wide { grid-column: 1 / -1; height: 180px; }
+  .stats { display: flex; gap: 20px; flex-wrap: wrap; background: #1a1816; border: 1px solid #2a2724; border-radius: 12px; padding: 14px 20px; font-size: .78rem; color: #666; }
+  .stats b { color: #f0ece6; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="root">
+  <div class="header">
+    <h1>Racket Motion Capture</h1>
+    <div class="pill"><div class="dot" id="dot"></div><span id="status">Waiting for board</span></div>
+  </div>
+  <div id="calOverlay" style="display:none;background:#1a1816;border:1px solid #2a2724;border-radius:14px;padding:32px 24px;text-align:center;flex-direction:column;align-items:center;gap:14px;">
+    <div style="font-size:1rem;font-weight:600;color:#f0ece6;">Hold racket vertically - handle pointing up</div>
+    <div style="font-size:.82rem;color:#888;">Stay still while the sensor locks in your zero position</div>
+    <div style="width:100%;background:#2a2724;border-radius:99px;height:8px;overflow:hidden;"><div id="calBar" style="height:100%;width:0%;background:#4ade80;border-radius:99px;transition:width .08s linear;"></div></div>
+    <div id="calSec" style="font-family:monospace;font-size:2.4rem;font-weight:700;color:#4ade80;">5.0</div>
+  </div>
+  <div class="readouts">
+    <div class="card accel"><div class="label">Accel X</div><div class="value" id="ax">-</div><div class="unit">m/s2</div></div>
+    <div class="card accel"><div class="label">Accel Y</div><div class="value" id="ay">-</div><div class="unit">m/s2</div></div>
+    <div class="card accel"><div class="label">Accel Z</div><div class="value" id="az">-</div><div class="unit">m/s2</div></div>
+    <div class="card gyro"><div class="label">Gyro X</div><div class="value" id="gx">-</div><div class="unit">rad/s</div></div>
+    <div class="card gyro"><div class="label">Gyro Y</div><div class="value" id="gy">-</div><div class="unit">rad/s</div></div>
+    <div class="card gyro"><div class="label">Gyro Z</div><div class="value" id="gz">-</div><div class="unit">rad/s</div></div>
+  </div>
+  <div class="charts">
+    <div class="chart-card"><div class="chart-title">Accelerometer (m/s2)</div><canvas id="accelChart"></canvas></div>
+    <div class="chart-card"><div class="chart-title">Gyroscope (rad/s)</div><canvas id="gyroChart"></canvas></div>
+  </div>
+  <div class="stats">
+    <div>Samples: <b id="sampleCount">0</b></div>
+    <div>Rate: <b id="rateVal">-</b> Hz</div>
+    <div>|Accel|: <b id="aMag">-</b> m/s2</div>
+    <div>|Gyro|: <b id="gMag">-</b> rad/s</div>
+    <div>Uptime: <b id="uptime">-</b></div>
+    <div>Dom. Freq: <b id="domFreq">-</b> Hz</div>
+  </div>
+  <div class="section-label">Display Sensitivity</div>
+  <div class="pid-tune">
+    <label>Chart smoothing<span id="csAlphaVal">Off (raw)</span><input type="range" id="csAlphaSlider" min="0.04" max="1.0" step="0.04" value="1.0"/></label>
+    <div style="font-size:.72rem;color:#555;margin-left:auto;">Lower = smoother charts, higher = more responsive</div>
+  </div>
+  <div class="section-label">Orientation - Complementary Filter</div>
+  <div class="orient-row">
+    <div class="card orient"><div class="label">Roll</div><div class="value" id="rollVal">-</div><div class="unit">deg</div></div>
+    <div class="card orient"><div class="label">Pitch</div><div class="value" id="pitchVal">-</div><div class="unit">deg</div></div>
+    <div class="card orient"><div class="label">Angular Vel</div><div class="value" id="angVelVal">-</div><div class="unit">deg/s</div></div>
+    <div class="card dom"><div class="label">Dom. Freq</div><div class="value" id="domFreq2">-</div><div class="unit">Hz</div></div>
+  </div>
+  <div class="section-label">PID Position Controller - setpoint = calibrated zero</div>
+  <div class="pid-row">
+    <div class="card pid-err"><div class="label">Error</div><div class="value" id="pidErr">-</div><div class="unit">deg</div></div>
+    <div class="card pid-p"><div class="label">P term</div><div class="value" id="pidP">-</div></div>
+    <div class="card pid-i"><div class="label">I term</div><div class="value" id="pidI">-</div></div>
+    <div class="card pid-d"><div class="label">D term</div><div class="value" id="pidD">-</div></div>
+    <div class="card pid-out"><div class="label">Output</div><div class="value" id="pidOut">-</div><div class="unit">correction</div></div>
+  </div>
+  <div class="pid-tune">
+    <label>Kp<span id="kpVal">2.00</span><input type="range" id="kpSlider" min="0" max="10" step="0.1" value="2.0"/></label>
+    <label>Ki<span id="kiVal">0.10</span><input type="range" id="kiSlider" min="0" max="2" step="0.01" value="0.1"/></label>
+    <label>Kd<span id="kdVal">0.50</span><input type="range" id="kdSlider" min="0" max="5" step="0.05" value="0.5"/></label>
+  </div>
+  <div class="section-label">Frequency Spectrum - |Accel| magnitude (0-25 Hz)</div>
+  <div class="charts"><div class="chart-card wide"><div class="chart-title">Spectral Power (Hann-windowed FFT, 256-pt @ 100 Hz)</div><canvas id="fftChart"></canvas></div></div>
+</div>
+<script>
+const COMP_A=0.98,INTERVAL_S=0.01;let roll=0,pitch=0,lastTs=null;
+function processOrientation(ax,ay,az,gx,gy,gz,dt){const aRoll=Math.atan2(ay,Math.sqrt(ax*ax+az*az))*180/Math.PI,aPitch=Math.atan2(-ax,Math.sqrt(ay*ay+az*az))*180/Math.PI;if(dt>0&&dt<0.5){roll=COMP_A*(roll+gx*180/Math.PI*dt)+(1-COMP_A)*aRoll;pitch=COMP_A*(pitch+gy*180/Math.PI*dt)+(1-COMP_A)*aPitch;}else{roll=aRoll;pitch=aPitch;}document.getElementById('rollVal').textContent=roll.toFixed(1);document.getElementById('pitchVal').textContent=pitch.toFixed(1);document.getElementById('angVelVal').textContent=(Math.sqrt(gx*gx+gy*gy+gz*gz)*180/Math.PI).toFixed(1);}
+let pidKp=2,pidKi=0.1,pidKd=0.5,pidIntegral=0,pidLastErr=0;const PID_MAX=200;
+function processPID(dt){const error=Math.sqrt(roll*roll+pitch*pitch);if(dt>0&&dt<0.5)pidIntegral=Math.max(-PID_MAX,Math.min(PID_MAX,pidIntegral+error*dt));const deriv=(dt>0&&dt<0.5)?(error-pidLastErr)/dt:0;pidLastErr=error;const P=pidKp*error,I=pidKi*pidIntegral,D=pidKd*deriv,out=Math.max(-PID_MAX,Math.min(PID_MAX,P+I+D));document.getElementById('pidErr').textContent=error.toFixed(1);document.getElementById('pidP').textContent=P.toFixed(2);document.getElementById('pidI').textContent=I.toFixed(2);document.getElementById('pidD').textContent=D.toFixed(2);document.getElementById('pidOut').textContent=out.toFixed(1);}
+const FFT_N=256,SAMP_HZ=100,fftBuf=[];let fftTick=0;
+function _fft(re,im){const n=re.length;for(let i=1,j=0;i<n;i++){let b=n>>1;for(;j&b;b>>=1)j^=b;j^=b;if(i<j){[re[i],re[j]]=[re[j],re[i]];[im[i],im[j]]=[im[j],im[i]];}}for(let len=2;len<=n;len<<=1){const ang=-2*Math.PI/len,wR=Math.cos(ang),wI=Math.sin(ang);for(let i=0;i<n;i+=len){let cR=1,cI=0;for(let j=0;j<len/2;j++){const uR=re[i+j],uI=im[i+j],vR=re[i+j+len/2]*cR-im[i+j+len/2]*cI,vJ=re[i+j+len/2]*cI+im[i+j+len/2]*cR;re[i+j]=uR+vR;im[i+j]=uI+vJ;re[i+j+len/2]=uR-vR;im[i+j+len/2]=uI-vJ;const nr=cR*wR-cI*wI;cI=cR*wI+cI*wR;cR=nr;}}}}
+function computeFFT(){if(fftBuf.length<FFT_N)return;const re=fftBuf.slice(-FFT_N),im=new Array(FFT_N).fill(0);for(let i=0;i<FFT_N;i++)re[i]*=0.5*(1-Math.cos(2*Math.PI*i/(FFT_N-1)));_fft(re,im);const mags=re.slice(0,FFT_N/2).map((r,i)=>Math.sqrt(r*r+im[i]*im[i])/FFT_N);fftChart.data.datasets[0].data=mags.slice(0,64);fftChart.update('none');let maxIdx=1,maxVal=0;for(let i=1;i<64;i++)if(mags[i]>maxVal){maxVal=mags[i];maxIdx=i;}const domF=(maxIdx*SAMP_HZ/FFT_N).toFixed(1);document.getElementById('domFreq').textContent=domF;document.getElementById('domFreq2').textContent=domF;}
+const MAX_POINTS=200,COLORS_A=['#60a5fa','#34d399','#f472b6'],COLORS_G=['#f97316','#facc15','#a78bfa'];
+function makeDataset(label,color){return{label,data:[],borderColor:color,backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,tension:0.3};}
+const chartOpts={animation:false,responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#888',font:{size:10},boxWidth:10,padding:8}}},scales:{x:{display:false},y:{grid:{color:'#2a2724'},ticks:{color:'#666',font:{size:10}}}}};
+const fftChart=new Chart(document.getElementById('fftChart'),{type:'bar',data:{labels:Array.from({length:64},(_,i)=>(i*SAMP_HZ/FFT_N).toFixed(1)),datasets:[{label:'Power',data:new Array(64).fill(0),backgroundColor:'#60a5fa33',borderColor:'#60a5fa',borderWidth:1}]},options:{animation:false,responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#555',font:{size:8},maxTicksLimit:13},grid:{display:false}},y:{grid:{color:'#2a2724'},ticks:{color:'#555',font:{size:9}},min:0}}}});
+const accelChart=new Chart(document.getElementById('accelChart'),{type:'line',data:{labels:[],datasets:['X','Y','Z'].map((l,i)=>makeDataset(l,COLORS_A[i]))},options:chartOpts});
+const gyroChart=new Chart(document.getElementById('gyroChart'),{type:'line',data:{labels:[],datasets:['X','Y','Z'].map((l,i)=>makeDataset(l,COLORS_G[i]))},options:chartOpts});
+function pushChart(chart,vals){const d=chart.data;d.labels.push('');vals.forEach((v,i)=>d.datasets[i].data.push(v));if(d.labels.length>MAX_POINTS){d.labels.shift();d.datasets.forEach(ds=>ds.data.shift());}chart.update('none');}
+let sampleCount=0,lastRateCheck=Date.now(),samplesInWindow=0,connected=false,startTime=null,csAlpha=1.0,csInit=false,csAx=0,csAy=0,csAz=0,csGx=0,csGy=0,csGz=0,calibrating=false,calStart=0;
+const CAL_MS=5000,calOverlay=document.getElementById('calOverlay'),calBar=document.getElementById('calBar'),calSec=document.getElementById('calSec');
+function showCal(show){calOverlay.style.display=show?'flex':'none';}
+function tickCal(){if(!calibrating)return;const elapsed=Date.now()-calStart;calBar.style.width=Math.min(100,elapsed/CAL_MS*100)+'%';calSec.textContent=Math.max(0,(CAL_MS-elapsed)/1000).toFixed(1);requestAnimationFrame(tickCal);}
+document.getElementById('kpSlider').addEventListener('input',e=>{pidKp=parseFloat(e.target.value);document.getElementById('kpVal').textContent=pidKp.toFixed(2);});
+document.getElementById('kiSlider').addEventListener('input',e=>{pidKi=parseFloat(e.target.value);pidIntegral=0;document.getElementById('kiVal').textContent=pidKi.toFixed(2);});
+document.getElementById('kdSlider').addEventListener('input',e=>{pidKd=parseFloat(e.target.value);document.getElementById('kdVal').textContent=pidKd.toFixed(2);});
+document.getElementById('csAlphaSlider').addEventListener('input',e=>{csAlpha=parseFloat(e.target.value);csInit=false;document.getElementById('csAlphaVal').textContent=csAlpha>=1.0?'Off (raw)':csAlpha.toFixed(2);});
+const dot=document.getElementById('dot'),status=document.getElementById('status');
+function setStatus(text,live){status.textContent=text;dot.classList.toggle('live',live);}
+function fmt(v){return v.toFixed(3);}
+window.addEventListener('message',e=>{if(!e.data)return;if(e.data.type==='serial_connected'){connected=e.data.connected;setStatus(connected?'Connected':'Disconnected',connected);return;}if(e.data.type!=='serial_data')return;const raw=e.data.data.trim();if(!raw)return;if(raw==='STATUS:CALIBRATING'){calibrating=true;calStart=Date.now();showCal(true);setStatus('Calibrating',true);tickCal();return;}if(raw==='STATUS:READY'){calibrating=false;showCal(false);setStatus('Streaming',true);return;}const parts=raw.split(',');if(parts.length<7)return;const[ts,ax,ay,az,gx,gy,gz]=parts.map(Number);if(isNaN(ts)||isNaN(ax))return;if(!csInit){csAx=ax;csAy=ay;csAz=az;csGx=gx;csGy=gy;csGz=gz;csInit=true;}else{csAx=csAlpha*ax+(1-csAlpha)*csAx;csAy=csAlpha*ay+(1-csAlpha)*csAy;csAz=csAlpha*az+(1-csAlpha)*csAz;csGx=csAlpha*gx+(1-csAlpha)*csGx;csGy=csAlpha*gy+(1-csAlpha)*csGy;csGz=csAlpha*gz+(1-csAlpha)*csGz;}const dax=csAx,day=csAy,daz=csAz,dgx=csGx,dgy=csGy,dgz=csGz;document.getElementById('ax').textContent=fmt(dax);document.getElementById('ay').textContent=fmt(day);document.getElementById('az').textContent=fmt(daz);document.getElementById('gx').textContent=fmt(dgx);document.getElementById('gy').textContent=fmt(dgy);document.getElementById('gz').textContent=fmt(dgz);pushChart(accelChart,[dax,day,daz]);pushChart(gyroChart,[dgx,dgy,dgz]);const dt=lastTs!==null?(ts-lastTs)/1000:INTERVAL_S;lastTs=ts;processOrientation(dax,day,daz,dgx,dgy,dgz,dt);processPID(dt);fftBuf.push(Math.sqrt(dax*dax+day*day+daz*daz));if(fftBuf.length>FFT_N)fftBuf.shift();fftTick++;if(fftTick>=10){fftTick=0;computeFFT();}sampleCount++;samplesInWindow++;if(!startTime)startTime=Date.now();document.getElementById('sampleCount').textContent=sampleCount;document.getElementById('aMag').textContent=fmt(Math.sqrt(ax*ax+ay*ay+az*az));document.getElementById('gMag').textContent=fmt(Math.sqrt(gx*gx+gy*gy+gz*gz));const now=Date.now();if(now-lastRateCheck>=1000){document.getElementById('rateVal').textContent=samplesInWindow;samplesInWindow=0;lastRateCheck=now;}const elapsed=Math.floor((Date.now()-startTime)/1000);document.getElementById('uptime').textContent=String(Math.floor(elapsed/60)).padStart(2,'0')+':'+String(elapsed%60).padStart(2,'0');setStatus('Streaming',true);});
+</script>
+</body>
+</html>
