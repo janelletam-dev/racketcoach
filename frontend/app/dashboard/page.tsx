@@ -30,10 +30,12 @@ export default async function DashboardPage({
   searchParams: Promise<{ welcome?: string }>;
 }) {
   const { token } = await requireUser();
-  // B10 onboarding gate is intentionally OFF until the backend adds a `sport`
-  // column AND returns it in /api/auth/me. Until then the gate can't fire
-  // correctly, and a redirect here (combined with a streaming loading.tsx) risks
-  // a stuck-loading dashboard. Re-enable once the backend lands:
+  // B10 sport-onboarding IS deployed (backend returns user.sport), but the gate
+  // is intentionally OFF for the demo: a fresh user (sport === null) should land
+  // on the dashboard empty state, not the picker. The gate also caused a hang --
+  // with a streaming loading.tsx, redirect() here emits a client-side meta tag
+  // instead of a 307 and can stick as eternal loading. To restore onboarding,
+  // re-add the gate AND keep loading.tsx removed so the redirect is a clean 307:
   //   const { user } = await requireUser();
   //   if (user.sport === null) redirect("/onboarding");
 
