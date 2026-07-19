@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { config } from "../config";
 import { buildConversationPrompt } from "../coaching/prompts";
+import { speechToText, textToSpeech } from "../services/elevenlabs";
 
 /**
  * B7 — POST /api/voice. One brain for BOTH devices (coach station + Genesis
@@ -49,7 +50,7 @@ voiceRoute.post("/", async (c) => {
   }
 
   try {
-    const question = await speechToText(wav);
+    const question = await speechToText(wav, "audio/wav", "question");
     if (!question.trim()) {
       return c.json({ error: "no speech recognized" }, 422);
     }
@@ -58,7 +59,7 @@ voiceRoute.post("/", async (c) => {
     const answer = await askCoach(question, q);
     console.log(`[voice] A: ${answer}`);
 
-    const mp3 = await textToSpeech(answer);
+    const mp3 = await textToSpeech(answer, config.elevenLabsVoiceId);
     return c.body(mp3, 200, {
       "Content-Type": "audio/mpeg",
       "Content-Length": String(mp3.byteLength),
@@ -114,24 +115,6 @@ async function timedFetch(url: string, init: RequestInit): Promise<Response> {
   return fetch(url, { ...init, signal: AbortSignal.timeout(config.externalTimeoutMs) });
 }
 
-async function speechToText(wav: Buffer): Promise<string> {
-  const form = new FormData();
-  form.append("model_id", "scribe_v1");
-  form.append(
-    "file",
-    new Blob([new Uint8Array(wav)], { type: "audio/wav" }),
-    "question.wav",
-  );
-  const res = await timedFetch("https://api.elevenlabs.io/v1/speech-to-text", {
-    method: "POST",
-    headers: { "xi-api-key": config.elevenLabsApiKey! },
-    body: form,
-  });
-  if (!res.ok) throw new Error(`STT ${res.status}: ${await res.text()}`);
-  const data = (await res.json()) as { text?: string };
-  return data.text ?? "";
-}
-
 async function askCoach(
   question: string,
   snapshot: Parameters<typeof buildConversationPrompt>[0],
@@ -157,20 +140,4 @@ async function askCoach(
   const text = data.content?.find((b) => b.type === "text")?.text?.trim();
   if (!text) throw new Error("empty coach reply");
   return text;
-}
-
-async function textToSpeech(text: string): Promise<Uint8Array<ArrayBuffer>> {
-  const res = await timedFetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${config.elevenLabsVoiceId}?output_format=mp3_44100_64`,
-    {
-      method: "POST",
-      headers: {
-        "xi-api-key": config.elevenLabsApiKey!,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text, model_id: config.elevenLabsTtsModel }),
-    },
-  );
-  if (!res.ok) throw new Error(`TTS ${res.status}: ${await res.text()}`);
-  return new Uint8Array(await res.arrayBuffer());
 }

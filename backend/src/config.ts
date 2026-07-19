@@ -28,6 +28,13 @@ export const config = {
     // must be audibly the same person (§8 tier 1).
     return process.env.ELEVENLABS_VOICE_ID ?? "21m00Tcm4TlvDq8ikWAM";
   },
+  /** Male/female voice IDs for the web "Ask your coach" TTS (/api/coach/speak). */
+  get elevenLabsVoiceIdMale(): string | undefined {
+    return process.env.ELEVENLABS_VOICE_ID_MALE;
+  },
+  get elevenLabsVoiceIdFemale(): string | undefined {
+    return process.env.ELEVENLABS_VOICE_ID_FEMALE;
+  },
   get elevenLabsTtsModel(): string {
     return process.env.ELEVENLABS_TTS_MODEL ?? "eleven_flash_v2_5";
   },

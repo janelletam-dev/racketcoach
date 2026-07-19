@@ -9,6 +9,7 @@ import {
   faultSummary,
 } from "../services/history";
 import { buildWebCoachPrompt } from "../coaching/prompts";
+import { speechToText, textToSpeech } from "../services/elevenlabs";
 
 /**
  * B11 — POST /api/coach/ask. The logged-in web player asks about their play and
@@ -89,5 +90,76 @@ coachRoute.post("/ask", async (c) => {
   } catch (err) {
     console.error("[coach] ask failed:", err);
     return c.json({ error: "coach unavailable" }, 502);
+  }
+});
+
+/**
+ * Voice OUT: TTS a coach answer with the selected voice → raw MP3 bytes.
+ * Bearer-authorized. Voice ids come from the Modal secret (male/female).
+ */
+coachRoute.post("/speak", async (c) => {
+  const uid = userIdFromAuthHeader(c.req.header("Authorization"));
+  if (!uid) return c.json({ error: "unauthorized" }, 401);
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = z
+    .object({
+      text: z.string().min(1).max(600),
+      voice: z.enum(["male", "female"]),
+    })
+    .safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "text (1-600) and voice (male|female) required" }, 400);
+  }
+
+  const voiceId =
+    parsed.data.voice === "male"
+      ? config.elevenLabsVoiceIdMale
+      : config.elevenLabsVoiceIdFemale;
+  if (!config.elevenLabsApiKey || !voiceId) {
+    return c.json({ error: "voice not configured" }, 503);
+  }
+
+  try {
+    const mp3 = await textToSpeech(parsed.data.text, voiceId);
+    return c.body(mp3, 200, {
+      "Content-Type": "audio/mpeg",
+      "Content-Length": String(mp3.byteLength),
+    });
+  } catch (err) {
+    console.error("[coach] speak failed:", err);
+    return c.json({ error: "tts unavailable" }, 502);
+  }
+});
+
+/**
+ * Voice IN: transcribe recorded audio → text. Accepts ANY audio/* — browsers
+ * record webm/opus, not WAV — and passes the incoming mime straight through to
+ * ElevenLabs. Bearer-authorized.
+ */
+coachRoute.post("/transcribe", async (c) => {
+  const uid = userIdFromAuthHeader(c.req.header("Authorization"));
+  if (!uid) return c.json({ error: "unauthorized" }, 401);
+
+  const contentType = c.req.header("content-type") ?? "";
+  const baseMime = contentType.split(";")[0].trim();
+  if (!baseMime.startsWith("audio/")) {
+    return c.json({ error: "an audio/* body is required" }, 400);
+  }
+  if (!config.elevenLabsApiKey) {
+    return c.json({ error: "transcribe not configured" }, 503);
+  }
+
+  const audio = Buffer.from(await c.req.arrayBuffer());
+  if (audio.length < 64) {
+    return c.json({ error: "audio body missing" }, 400);
+  }
+
+  try {
+    const text = await speechToText(audio, contentType || baseMime, "recording");
+    return c.json({ text });
+  } catch (err) {
+    console.error("[coach] transcribe failed:", err);
+    return c.json({ error: "transcribe unavailable" }, 502);
   }
 });
