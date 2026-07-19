@@ -71,5 +71,27 @@ authRoute.get("/me", async (c) => {
   if (!uid) return c.json({ error: "unauthorized" }, 401);
   const user = await getUserById(uid);
   if (!user) return c.json({ error: "unauthorized" }, 401);
-  return c.json({ id: user.id, name: user.name, email: user.email });
+  return c.json({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    sport: user.sport, // B10: null until onboarded
+  });
+});
+
+// B10: set the player's sport (one-time onboarding). Bearer-authorized.
+const SPORTS = ["table_tennis", "tennis", "badminton", "padel"] as const;
+authRoute.post("/sport", async (c) => {
+  const uid = userIdFromAuthHeader(c.req.header("Authorization"));
+  if (!uid) return c.json({ error: "unauthorized" }, 401);
+  const body = await c.req.json().catch(() => null);
+  const parsed = z.object({ sport: z.enum(SPORTS) }).safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: `sport must be one of ${SPORTS.join(", ")}` }, 400);
+  }
+  await db
+    .update(users)
+    .set({ sport: parsed.data.sport })
+    .where(eq(users.id, uid));
+  return c.json({ ok: true, sport: parsed.data.sport }, 200);
 });
