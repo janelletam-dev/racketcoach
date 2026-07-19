@@ -170,3 +170,60 @@ export async function isCoachAvailable(token: string): Promise<boolean> {
     return false;
   }
 }
+
+// --- B11 voice layer (ElevenLabs, via cc2's /api/coach/speak + /transcribe) ---
+
+export type VoiceGender = "female" | "male";
+
+/** Feature-detect POST /api/coach/speak so the voice UI hides until cc2 wires it. */
+export async function isCoachVoiceAvailable(token: string): Promise<boolean> {
+  try {
+    const res = await backendFetch("/api/coach/speak", {
+      token,
+      method: "POST",
+      body: {},
+    });
+    return res.status !== 404;
+  } catch {
+    return false;
+  }
+}
+
+/** TTS: the coach's answer spoken in the chosen ElevenLabs voice. Returns the
+ *  MP3 as base64 so a server action can hand it straight to the browser. */
+export async function coachSpeak(
+  token: string,
+  text: string,
+  voice: VoiceGender,
+): Promise<{ audioBase64?: string; error?: string; unavailable?: boolean }> {
+  const res = await backendFetch("/api/coach/speak", {
+    token,
+    method: "POST",
+    body: { text, voice },
+  });
+  if (res.status === 404) return { unavailable: true };
+  if (res.status === 401) return { error: "Please sign in again." };
+  if (!res.ok) return { error: "Couldn't generate the audio. Try again." };
+  const buf = Buffer.from(await res.arrayBuffer());
+  return { audioBase64: buf.toString("base64") };
+}
+
+/** STT: a recorded audio clip transcribed by ElevenLabs. Raw audio body, so it
+ *  bypasses backendFetch's JSON handling. */
+export async function coachTranscribe(
+  token: string,
+  audio: ArrayBuffer,
+  mime: string,
+): Promise<{ text?: string; error?: string; unavailable?: boolean }> {
+  const res = await fetch(`${BACKEND_URL}/api/coach/transcribe`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": mime },
+    body: audio,
+    cache: "no-store",
+  });
+  if (res.status === 404) return { unavailable: true };
+  if (res.status === 401) return { error: "Please sign in again." };
+  if (!res.ok) return { error: "Couldn't transcribe that. Try again." };
+  const data = (await res.json().catch(() => null)) as { text?: string } | null;
+  return { text: data?.text ?? "" };
+}

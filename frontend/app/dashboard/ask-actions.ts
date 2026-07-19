@@ -1,7 +1,12 @@
 "use server";
 
 import { getSessionToken } from "@/lib/session";
-import { askCoach } from "@/lib/api";
+import {
+  askCoach,
+  coachSpeak,
+  coachTranscribe,
+  type VoiceGender,
+} from "@/lib/api";
 
 export type AskState = {
   answer?: string;
@@ -30,4 +35,38 @@ export async function askCoachAction(
   }
   if (result.error) return { error: result.error, question };
   return { answer: result.answer, question };
+}
+
+/** TTS: speak the coach's answer in the chosen ElevenLabs voice (Anya/Miles ->
+ *  female/male). Returns base64 MP3 for the browser to play. Called directly. */
+export async function speakAction(
+  text: string,
+  voice: VoiceGender,
+): Promise<{ audio?: string; error?: string }> {
+  const clean = text?.trim();
+  if (!clean) return { error: "Nothing to play." };
+  const token = await getSessionToken();
+  if (!token) return { error: "Please sign in again." };
+  const result = await coachSpeak(token, clean, voice);
+  if (result.unavailable) return { error: "Voice isn't available yet." };
+  if (result.error) return { error: result.error };
+  return { audio: result.audioBase64 };
+}
+
+/** STT: transcribe a recorded voice clip (ElevenLabs Scribe) into the question
+ *  box. Takes the audio Blob via FormData. Called directly (not a form action). */
+export async function transcribeAction(
+  formData: FormData,
+): Promise<{ text?: string; error?: string }> {
+  const clip = formData.get("audio");
+  if (!(clip instanceof Blob) || clip.size === 0) {
+    return { error: "No audio captured." };
+  }
+  const token = await getSessionToken();
+  if (!token) return { error: "Please sign in again." };
+  const buf = await clip.arrayBuffer();
+  const result = await coachTranscribe(token, buf, clip.type || "audio/webm");
+  if (result.unavailable) return { error: "Voice input isn't available yet." };
+  if (result.error) return { error: result.error };
+  return { text: result.text };
 }

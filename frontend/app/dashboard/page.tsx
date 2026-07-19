@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/session";
-import { getSessions, isCoachAvailable } from "@/lib/api";
+import { getSessions, isCoachAvailable, isCoachVoiceAvailable } from "@/lib/api";
 import { parseAnalysis } from "@/lib/analysis";
 import {
   goodRepRate,
@@ -49,11 +49,13 @@ export default async function DashboardPage({
     </div>
   ) : null;
 
-  // Feature-detect B11's coach endpoint in parallel — no added latency, and the
-  // "Ask your coach" card stays hidden until cc2's POST /api/coach/ask is live.
-  const [sessions, coachAvailable] = await Promise.all([
+  // Feature-detect B11's coach endpoints in parallel — no added latency. The
+  // card hides until POST /api/coach/ask is live; the voice layer (mic + spoken
+  // answers) hides until POST /api/coach/speak is live.
+  const [sessions, coachAvailable, voiceAvailable] = await Promise.all([
     getSessions(token),
     isCoachAvailable(token),
+    isCoachVoiceAvailable(token),
   ]);
 
   if (sessions.length === 0) {
@@ -124,7 +126,7 @@ export default async function DashboardPage({
 
       {coachAvailable ? (
         <div className="mb-6">
-          <AskCoach />
+          <AskCoach voiceAvailable={voiceAvailable} />
         </div>
       ) : null}
 
