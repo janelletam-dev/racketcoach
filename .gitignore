@@ -53,3 +53,6 @@ __pycache__/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# scratch/agent staging dir
+_to_delete/
