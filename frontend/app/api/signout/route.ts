@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE } from "@/lib/session";
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+import { APP_URL } from "@/lib/config";
 
 export async function POST() {
   const res = NextResponse.redirect(new URL("/", APP_URL), 303);

@@ -1,4 +1,5 @@
 import { requireUser } from "@/lib/session";
+import { APP_URL } from "@/lib/config";
 import { getMyPairing, claimPairing } from "@/lib/api";
 import { Header } from "@/app/components/header";
 import { Card, SectionLabel, PixelLink, Badge } from "@/app/components/ui";
@@ -25,8 +26,7 @@ export default async function PairPage({
     activeCode = await getMyPairing(token);
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const qrValue = activeCode ? `${appUrl}/pair?code=${activeCode}` : appUrl;
+  const qrValue = activeCode ? `${APP_URL}/pair?code=${activeCode}` : APP_URL;
 
   return (
     <main className="flex-1 w-full max-w-2xl mx-auto px-5 sm:px-8 py-10">

@@ -2,8 +2,17 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getMe, type ApiUser } from "./api";
+import { SESSION_MAX_AGE } from "./config";
 
 export const SESSION_COOKIE = "rc_session";
+
+/** Options for the session cookie, shared by every route that sets it. */
+export const sessionCookieOptions = {
+  httpOnly: true,
+  sameSite: "lax" as const,
+  path: "/",
+  maxAge: SESSION_MAX_AGE,
+};
 
 export async function getSessionToken(): Promise<string | null> {
   const store = await cookies();

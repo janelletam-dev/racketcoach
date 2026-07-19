@@ -3,8 +3,7 @@
 // the session token read from an httpOnly cookie.
 
 import { redirect } from "next/navigation";
-
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3001";
+import { BACKEND_URL } from "./config";
 
 export type ApiSession = {
   id: string;
