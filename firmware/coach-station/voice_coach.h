@@ -80,6 +80,9 @@ bool initMic() {
   recBuf = (int16_t*)ps_malloc((size_t)MIC_RATE * VAD_MAX_SECS * sizeof(int16_t));
   if (!recBuf) { Serial.println("Voice: PSRAM alloc failed (enable PSRAM in Tools)"); return false; }
   micOk = true;
+  vadSuppress(2000);   // [P6] PDM startup transient: first chunks are garbage
+                       // while the mic's filter settles — ignore them or some
+                       // boots false-trigger a full voice cycle instantly
   Serial.println("Voice: PDM mic ready — VAD active");
   return true;
 }
@@ -97,8 +100,17 @@ void vadTick(bool suppressTrigger) {
   int cnt = (int)(n / 2);
 
   // RMS of this chunk — [P1] 64-bit accumulator (256 × 32767² overflows long)
+  // [P5] DC-offset corrected: PDM mics sit on a bias, so raw RMS reads
+  // permanently high (observed rms≈1100 in a quiet room → instant false
+  // trigger, never releases). Measure deviation from the chunk mean instead.
+  int64_t sum = 0;
+  for (int i = 0; i < cnt; i++) sum += mb[i];
+  int32_t mean = (int32_t)(sum / cnt);
   int64_t sq = 0;
-  for (int i = 0; i < cnt; i++) sq += (int64_t)mb[i] * mb[i];
+  for (int i = 0; i < cnt; i++) {
+    int32_t d = (int32_t)mb[i] - mean;
+    sq += (int64_t)d * d;
+  }
   int rms = (int)sqrt((double)sq / cnt);
 
   bool suppress = suppressTrigger || vadSuppressed();

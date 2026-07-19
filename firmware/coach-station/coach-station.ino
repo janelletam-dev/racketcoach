@@ -101,9 +101,8 @@ GFXcanvas16     canvas(160, 80);
 Adafruit_NeoPixel matrix(25, NEO_PIN, NEO_GRB + NEO_KHZ800);
 
 // Amp on I2S1 so the PDM mic can have I2S0 (S3: PDM RX is I2S0-only).
-// If this constructor signature doesn't match your ESP32-audioI2S version,
-// check Audio.h for the i2sPort parameter position.
-Audio audio(false, 3, I2S_NUM_1);
+// ESP32-audioI2S 3.x constructor takes only the port.
+Audio audio(I2S_NUM_1);
 
 // ── Game types ────────────────────────────────────────────────────────────────
 // Fault tally indices — names match the paddle's wire faultType strings.
@@ -129,6 +128,20 @@ unsigned long roundStart  = 0;
 
 const unsigned long ROUND_MS   = 60000UL;
 const int           WIN_STREAK = 5;
+
+// ── Session state — a session = all rounds until the players stop ────────────
+// Short press: start/end a round. LONG press (idle): end the session → one
+// aggregated upload to the dashboard. Idle 10 min → session auto-closes.
+struct SessionTotals { int good; int total; float speedSum; uint16_t faults[4]; };
+bool          sessionActive = false;
+unsigned long sessionStart  = 0;
+unsigned long lastRoundEnd  = 0;
+unsigned long lastPaddleMsg = 0;   // ANY swing counts as activity — resting or
+                                   // free-hitting between rounds never closes
+                                   // the session; only true absence does
+SessionTotals sTot[2];
+const unsigned long LONG_PRESS_MS   = 5000;   // hold 5 s (NeoPixel goes blue) = end session
+const unsigned long SESSION_IDLE_MS = 10UL * 60UL * 1000UL;
 
 // ── Timing ────────────────────────────────────────────────────────────────────
 unsigned long lastDraw = 0;
@@ -216,7 +229,7 @@ void clearPlayer(Player& pl, int id) {
   // bestStreak intentionally NOT cleared here
 }
 
-// ── Session upload — one POST per player per completed round ─────────────────
+// ── Session upload — ONE POST per player per SESSION (all rounds combined) ───
 // Contract: docs/architecture-proposal.md B1/B2 (existing board API fields +
 // durationSeconds; unknown fields are stripped server-side pre-B1, so this is
 // safe to ship before the backend migration lands).
@@ -232,8 +245,10 @@ bool isoTimeNow(char* out, size_t n) {
   return true;
 }
 
-void sendSessionSummary(Player& pl, const char* code, unsigned long durSec) {
-  if (pl.totalReps <= 0) return;   // player never hit — nothing to record
+void sendSessionSummary(int idx, const char* code, unsigned long durSec) {
+  SessionTotals& t  = sTot[idx];
+  Player&        pl = p[idx];
+  if (t.total <= 0) return;   // player never hit — nothing to record
   if (WiFi.status() != WL_CONNECTED) {
     Serial.printf("[upload] P%d skipped — no internet (game unaffected)\n", pl.id);
     return;
@@ -245,16 +260,16 @@ void sendSessionSummary(Player& pl, const char* code, unsigned long durSec) {
   }
   int best = -1; uint16_t bc = 0;
   for (int i = 0; i < 4; i++)
-    if (pl.faultCounts[i] > bc) { bc = pl.faultCounts[i]; best = i; }
+    if (t.faults[i] > bc) { bc = t.faults[i]; best = i; }
 
   char body[360];
   snprintf(body, sizeof(body),
     "{\"pairingCode\":\"%s\",\"date\":\"%s\",\"goodReps\":%d,\"totalReps\":%d,"
     "\"bestStreak\":%d,\"commonFault\":\"%s\",\"avgSpeed\":%.2f,"
     "\"durationSeconds\":%lu}",
-    code, iso, pl.goodReps, pl.totalReps, pl.bestStreak,
+    code, iso, t.good, t.total, pl.bestStreak,
     best >= 0 ? FAULT_NAMES[best] : "none",
-    pl.speedSum / pl.totalReps, durSec);
+    t.speedSum / t.total, durSec);
 
   String url = String(BACKEND_URL) + "/api/session";
   WiFiClientSecure tlsC;
@@ -271,18 +286,25 @@ void sendSessionSummary(Player& pl, const char* code, unsigned long durSec) {
   http.end();
 }
 
-void postRoundSessions(unsigned long durSec) {
-  sendSessionSummary(p[0], STATION_PAIRING_CODE, durSec);
+void postSessionUploads(unsigned long durSec) {
+  sendSessionSummary(0, STATION_PAIRING_CODE, durSec);
 #ifdef STATION_PAIRING_CODE_P2
-  sendSessionSummary(p[1], STATION_PAIRING_CODE_P2, durSec);
+  sendSessionSummary(1, STATION_PAIRING_CODE_P2, durSec);
 #else
-  if (p[1].totalReps > 0)
+  if (sTot[1].total > 0)
     Serial.println("[upload] P2 skipped — no STATION_PAIRING_CODE_P2 configured");
 #endif
 }
 #endif  // BACKEND_URL
 
 void startRound() {
+  if (!sessionActive) {                 // first round after idle opens a session
+    sessionActive = true;
+    sessionStart  = millis();
+    roundNum      = 0;
+    memset(sTot, 0, sizeof(sTot));
+    Serial.println("Session started");
+  }
   int b0 = p[0].bestStreak;
   int b1 = p[1].bestStreak;
   clearPlayer(p[0], 1); p[0].bestStreak = b0;
@@ -299,7 +321,6 @@ void startRound() {
 }
 
 void endRound(int winnerId) {
-  unsigned long durSec = roundActive ? (millis() - roundStart) / 1000 : 0;
   roundActive  = false;
   neoIdleColor = 0;
   uint32_t flashCol = (winnerId == 1) ? matrix.Color(0, 0, 160)   // blue P1
@@ -313,13 +334,37 @@ void endRound(int winnerId) {
   drawWinner(winnerId);
   Serial.printf("Round %d ended. Winner: P%d\n", roundNum, winnerId);
 
+  // Fold this round into the session totals (uploaded once, at session end).
+  for (int i = 0; i < 2; i++) {
+    sTot[i].good     += p[i].goodReps;
+    sTot[i].total    += p[i].totalReps;
+    sTot[i].speedSum += p[i].speedSum;
+    for (int f = 0; f < 4; f++) sTot[i].faults[f] += p[i].faultCounts[f];
+  }
+  lastRoundEnd = millis();
+  Serial.println("Short press: next round · hold 5s: end session + save");
+}
+
+void endSession(bool autoClosed = false) {
+  if (!sessionActive) return;
+  sessionActive = false;
+  // Auto-close: the match "ended" at the last real activity, not 10 idle
+  // minutes later. Manual (5 s hold): it ends right now.
+  unsigned long endAt = millis();
+  if (autoClosed) {
+    unsigned long lastAct = max(lastRoundEnd, lastPaddleMsg);
+    if (lastAct > sessionStart) endAt = lastAct;
+  }
+  unsigned long durSec = (endAt - sessionStart) / 1000;
+  Serial.printf("Session ended — %d round(s), %lu s. Uploading…\n", roundNum, durSec);
+  flashNeo(matrix.Color(140, 0, 140), 1500);  // purple = saved
 #ifdef BACKEND_URL
-  // Upload after the win clip finishes — the TLS POST blocks, and blocking
-  // mid-clip would starve the audio buffer. Winner screen is static anyway.
-  unsigned long clipWait = millis() + 6000;
+  // Let any clip finish first — the TLS POST blocks and would starve audio.
+  unsigned long clipWait = millis() + 4000;
   while (audioPlaying && millis() < clipWait) audio.loop();
-  postRoundSessions(durSec);
+  postSessionUploads(durSec);
 #endif
+  drawIdle();
 }
 
 // ── Process one incoming paddle UDP JSON message ──────────────────────────────
@@ -336,6 +381,7 @@ void processMsg() {
   if (pid < 1 || pid > 2) return;
   Player& pl = p[pid - 1];
   lastActivePlayer = pid;
+  lastPaddleMsg    = millis();
 
   const char* result    = doc["result"]    | "fault";
   const char* faultType = doc["faultType"] | "none";
@@ -454,9 +500,9 @@ void drawWinner(int winnerId) {
 
   canvas.setTextSize(1);
   canvas.setTextColor(COL_DIMGRAY);
-  // "Press reset for next" = 20 chars × 6px = 120px; x=20 → ends at 140 < 160
-  canvas.setCursor(20, 68);
-  canvas.print("Press reset for next");
+  // "Press:next  Hold:save" = 21 chars × 6px = 126px; x=17
+  canvas.setCursor(17, 68);
+  canvas.print("Press:next  Hold:save");
 
   tft.drawRGBBitmap(0, 0, canvas.getBuffer(), 160, 80);
 }
@@ -467,15 +513,19 @@ void drawIdle() {
   canvas.setTextSize(1);
   canvas.setTextColor(COL_CYAN);
   // "COACH STATION" = 13 chars × 6px = 78px; cx = (160-78)/2 = 41
-  canvas.setCursor(41, 22);
+  canvas.setCursor(41, 14);
   canvas.print("COACH STATION");
   canvas.setTextColor(COL_WHITE);
-  // "Press reset to start" = 20 chars × 6px = 120px; cx = 20
-  canvas.setCursor(20, 38);
-  canvas.print("Press reset to start");
+  canvas.setCursor(4, 30);
+  canvas.print("Press: start round");
+  canvas.setCursor(4, 42);
+  canvas.print("Hold 5s: save session");
+  canvas.setTextColor(COL_ORANGE);
+  canvas.setCursor(4, 54);
+  canvas.print("TALK btn: ask coach");
   canvas.setTextColor(COL_DIMGRAY);
-  canvas.setCursor(8, 56);
-  canvas.print(sdOk ? "SD: OK" : "SD: MISSING — no audio");
+  canvas.setCursor(4, 68);
+  canvas.print(sdOk ? "SD: OK" : "SD: MISSING - no audio");
   tft.drawRGBBitmap(0, 0, canvas.getBuffer(), 160, 80);
 }
 
@@ -690,10 +740,65 @@ void loop() {
   // NeoPixel flash timeout → restore idle color
   updateNeo();
 
-  // Round-reset button
+  // Round button — action decided on STABLE release (bounce-proof):
+  //   short press (~1 s): idle → start round; round active (≥3 s in) → end round
+  //   long hold  (≥5 s):  NeoPixel turns blue → release = "we're done":
+  //                       ends the round too if one is running, then ends the
+  //                       session and uploads. Works from ANY state.
+  //   Blips: a <50 ms HIGH glitch mid-hold no longer fakes a release (the
+  //   bouncy P5 pin was cutting holds short → phantom tie rounds).
+  // The P5 pin flickers HIGH mid-press, so the long-hold FIRES AT THE 5s
+  // MARK while still held (purple = it saved, right then) — no release
+  // timing involved. Short presses act on a 300ms-stable release, which
+  // the flicker can't fake. 2s lockout after a long-hold swallows trailing
+  // edges from the same physical press.
+  static unsigned long pressStart = 0, highStart = 0, btnLockout = 0;
   bool curReset = digitalRead(BTN_RESET);
-  if (curReset == LOW && prevReset == HIGH) startRound();
+  if (millis() >= btnLockout) {
+    if (curReset == LOW) {                             // held (or flickering low)
+      if (!pressStart) pressStart = millis();
+      highStart = 0;
+      if (millis() - pressStart >= LONG_PRESS_MS) {    // 5s reached → FIRE NOW
+        setAllNeo(matrix.Color(140, 0, 140));          // purple = saved
+        if (roundActive) {
+          int winner = (p[0].goodReps > p[1].goodReps) ? 1
+                     : (p[1].goodReps > p[0].goodReps) ? 2 : 0;
+          Serial.println("Long hold — ending round and session");
+          endRound(winner);
+        }
+        endSession();
+        pressStart = 0;
+        btnLockout = millis() + 2000;                  // ignore the tail of this press
+      }
+    } else if (pressStart) {                           // pin HIGH mid-press
+      if (!highStart) {
+        highStart = millis();
+      } else if (millis() - highStart > 300) {         // stable → real release
+        unsigned long held = highStart - pressStart;
+        pressStart = 0;
+        if (held >= 50) {                              // short press action
+          if (!roundActive) {
+            startRound();
+          } else if (millis() - roundStart > 3000) {
+            Serial.println("Round ended by button");
+            int winner = (p[0].goodReps > p[1].goodReps) ? 1
+                       : (p[1].goodReps > p[0].goodReps) ? 2 : 0;
+            endRound(winner);
+          }
+        }
+      }
+    }
+  }
   prevReset = curReset;
+
+  // Session auto-close: only when there has been NO activity at all — no
+  // rounds AND no paddle swings — for 10 min. Resting or free-hitting
+  // between rounds keeps the session open; duration ends at last activity.
+  if (sessionActive && !roundActive &&
+      millis() - max(lastRoundEnd, lastPaddleMsg) > SESSION_IDLE_MS) {
+    Serial.println("Session idle timeout — players gone, closing");
+    endSession(true);
+  }
 
   // VAD — speech detection. Triggers are suppressed during clips AND during
   // active rounds (ball impacts false-trigger otherwise); P4 still works.
