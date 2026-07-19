@@ -1,0 +1,99 @@
+# Backend deploy: every push touching backend/ redeploys the Modal app and
+# runs the deploy-gate checks against the live URL (cc2 lane; mirrors the
+# Vercel auto-deploy the frontend already has). Secrets required in the repo:
+# MODAL_TOKEN_ID, MODAL_TOKEN_SECRET.
+name: deploy-backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      BACKEND_URL: https://janelletam-dev--racketcoach-backend.modal.run
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Cheap pre-deploy gate: the code must typecheck.
+      - name: Typecheck
+        working-directory: backend
+        run: |
+          npm ci --no-audit --no-fund
+          npx tsc --noEmit
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Fail-soft: without the Modal repo secrets, skip deploy + verify (the
+      # typecheck above still ran). Add MODAL_TOKEN_ID / MODAL_TOKEN_SECRET to
+      # the repo secrets to enable auto-deploy. A missing secret never blocks a
+      # push or fails the job.
+      - name: Check Modal credentials
+        id: creds
+        run: |
+          if [ -z "$MODAL_TOKEN_ID" ] || [ -z "$MODAL_TOKEN_SECRET" ]; then
+            echo "::notice::Modal repo secrets not set — skipping deploy + live verify."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy to Modal
+        if: steps.creds.outputs.skip != 'true'
+        working-directory: backend
+        run: |
+          pip install --quiet modal
+          modal deploy modal_app.py
+
+      # Deploy-gate verification (proposal: A2 demo 403, boot clean) plus a
+      # version probe that only the current code answers correctly.
+      - name: Verify live deployment
+        if: steps.creds.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          echo "boot / health:"
+          for i in $(seq 1 12); do
+            if curl -fsS -m 10 "$BACKEND_URL/health" | grep -q ok; then break; fi
+            [ "$i" = 12 ] && { echo "health never came up"; exit 1; }
+            sleep 10
+          done
+          echo "  ok"
+
+          echo "A2: demo login must be 403:"
+          code=$(curl -sS -m 10 -o /dev/null -w "%{http_code}" -X POST "$BACKEND_URL/api/auth/demo")
+          [ "$code" = "403" ] || { echo "  FAIL: got $code"; exit 1; }
+          echo "  ok (403)"
+
+          echo "B2: multipart board endpoint answers (unknown code -> 404):"
+          code=$(curl -sS -m 10 -o /dev/null -w "%{http_code}" -X POST "$BACKEND_URL/api/session" \
+            -F 'meta={"pairingCode":"ZZZZZZ","date":"2026-01-01T00:00:00.000Z","goodReps":1,"totalReps":2,"bestStreak":1,"commonFault":"none","avgSpeed":1}')
+          [ "$code" = "404" ] || { echo "  FAIL: got $code"; exit 1; }
+          echo "  ok (404)"
+
+          echo "B9: camera endpoint answers (unknown code -> 404):"
+          code=$(curl -sS -m 10 -o /dev/null -w "%{http_code}" -X POST "$BACKEND_URL/api/camera" \
+            -H "Content-Type: application/json" \
+            -d '{"pairingCode":"ZZZZZZ","metrics":{"elbowGap":0.5}}')
+          [ "$code" = "404" ] || { echo "  FAIL: got $code"; exit 1; }
+          echo "  ok (404)"
+
+          echo "B7: voice endpoint mounted (must NOT be 404; 503/401 both mean mounted):"
+          code=$(curl -sS -m 10 -o /dev/null -w "%{http_code}" -X POST "$BACKEND_URL/api/voice")
+          [ "$code" != "404" ] || { echo "  FAIL: /api/voice returned 404 (not mounted)"; exit 1; }
+          echo "  ok ($code)"
