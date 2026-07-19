@@ -326,18 +326,28 @@ render on the session page. Backend `.env.example` documents the two new keys.
 
 ### B7. Voice endpoint — `POST /api/voice` (serves BOTH devices)
 The coach station and the Genesis mini coach are two clients of the same
-endpoint — one brain, zero third-party keys on devices:
-1. Accepts recorded audio (WAV/PCM) + the player's current signal snapshot,
-   authorized by pairing code or a device token.
+endpoint — one brain, zero third-party keys on devices. **The firmware client
+already exists** (`voice_coach.h` `voicePost()`) — build the endpoint to ITS
+contract:
+1. Request: `POST /api/voice?key=<device token>&player=&goodReps=&streak=&
+   bestStreak=&avgSpeed=` with body `Content-Type: audio/wav` (16 kHz mono
+   PCM WAV, ≤6 s). Device auth = token in query (`VOICE_ENDPOINT_URL` in the
+   device's secrets.h carries it).
 2. STT (ElevenLabs) → conversation prompt from `coaching/prompts.ts`
    (guardrail: general answers allowed, invented observations forbidden) →
    Claude → ElevenLabs TTS.
-3. Returns a URL the device streams with `audio.connecttohost()` (or the MP3
-   bytes directly). Keys (`ELEVENLABS_API_KEY`) live in Modal secrets via
-   `config.ts`, alongside the others.
+3. Response: **MP3 bytes in the body** (the device streams them to SD and
+   plays — it does NOT follow a URL). Keys (`ELEVENLABS_API_KEY`) live in
+   Modal secrets via `config.ts`, alongside the others.
 Also: pre-generate the §4 cue-library clips with the same ElevenLabs voice
 (one-off script, `backend/scripts/generate-cues.ts`) so devices play instant
 tier-1 cues in the same voice the LLM speaks with.
+
+### B9. Camera metrics endpoint — `POST /api/camera`
+Small endpoint for the browser (Live Motion) to submit fused camera metrics
+at end of a rep set: `{pairingCode, metrics}` validated by
+`coaching/signals.ts`; backend attaches them to that user's latest session.
+See `docs/architecture.md` D3/D6 and wire contract #3.
 
 ### B8. Coaching knowledge layer — `backend/src/coaching/`
 `docs/coaching-knowledge.md` is the source of truth (cue library, guardrails,
