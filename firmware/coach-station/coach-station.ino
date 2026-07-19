@@ -33,15 +33,26 @@
 #include <SD.h>
 #include <Audio.h>
 #include <RotaryEncoder.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include <time.h>
 #include "secrets.h"
 #include "voice_coach.h"
 
-// Internet-side credentials (venue / hotspot) — keep the real values in
-// secrets.h (#define WIFI_SSID "..." / #define WIFI_PASS "...") so this file
-// stays committable. The fallback below only exists so the sketch compiles.
+// Session upload config (secrets.h). Without BACKEND_URL the station skips
+// uploads entirely — the local game is unaffected.
+//   #define BACKEND_URL "https://janelletam-dev--racketcoach-backend.modal.run"
+//   #define STATION_PAIRING_CODE "ACE123"        // player 1's claimed code
+//   #define STATION_PAIRING_CODE_P2 "XYZ789"     // optional, player 2
+#ifndef STATION_PAIRING_CODE
+#define STATION_PAIRING_CODE "ACE123"
+#endif
+
+// Internet-side credentials (venue / hotspot / home) live ONLY in secrets.h
+// (gitignored). No fallback on purpose: a missing secrets.h must fail the
+// compile, never silently embed credentials in a committable file.
 #ifndef WIFI_SSID
-#define WIFI_SSID "Kindling Member"
-#define WIFI_PASS "KM2026!!"
+#error "Create secrets.h (copy secrets.h.example) with WIFI_SSID / WIFI_PASS"
 #endif
 
 // Paddle-side network — the station's own AP. The paddle firmware must join
@@ -95,14 +106,19 @@ Adafruit_NeoPixel matrix(25, NEO_PIN, NEO_GRB + NEO_KHZ800);
 Audio audio(false, 3, I2S_NUM_1);
 
 // ── Game types ────────────────────────────────────────────────────────────────
+// Fault tally indices — names match the paddle's wire faultType strings.
+static const char* FAULT_NAMES[4] =
+  {"paddleDropped", "slowReturn", "inconsistent", "overHitting"};
+
 struct Player {
-  int   id;
-  int   goodReps;
-  int   streak;
-  int   bestStreak;   // survives across rounds
-  int   totalReps;
-  float speedSum;
-  char  lastFault[24];
+  int      id;
+  int      goodReps;
+  int      streak;
+  int      bestStreak;   // survives across rounds
+  int      totalReps;
+  float    speedSum;
+  char     lastFault[24];
+  uint16_t faultCounts[4];   // tallied per round → commonFault in the upload
 };
 
 // ── Game state ────────────────────────────────────────────────────────────────
@@ -196,8 +212,75 @@ void clearPlayer(Player& pl, int id) {
   pl.totalReps   = 0;
   pl.speedSum    = 0.0f;
   pl.lastFault[0] = 0;
+  for (int i = 0; i < 4; i++) pl.faultCounts[i] = 0;
   // bestStreak intentionally NOT cleared here
 }
+
+// ── Session upload — one POST per player per completed round ─────────────────
+// Contract: docs/architecture-proposal.md B1/B2 (existing board API fields +
+// durationSeconds; unknown fields are stripped server-side pre-B1, so this is
+// safe to ship before the backend migration lands).
+#ifdef BACKEND_URL
+bool isoTimeNow(char* out, size_t n) {
+  time_t t = time(nullptr);
+  if (t < 1700000000) return false;   // NTP hasn't synced — no valid clock
+  struct tm tmv;
+  gmtime_r(&t, &tmv);
+  snprintf(out, n, "%04d-%02d-%02dT%02d:%02d:%02d.000Z",
+           tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday,
+           tmv.tm_hour, tmv.tm_min, tmv.tm_sec);
+  return true;
+}
+
+void sendSessionSummary(Player& pl, const char* code, unsigned long durSec) {
+  if (pl.totalReps <= 0) return;   // player never hit — nothing to record
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.printf("[upload] P%d skipped — no internet (game unaffected)\n", pl.id);
+    return;
+  }
+  char iso[36];
+  if (!isoTimeNow(iso, sizeof(iso))) {
+    Serial.printf("[upload] P%d skipped — clock not NTP-synced yet\n", pl.id);
+    return;
+  }
+  int best = -1; uint16_t bc = 0;
+  for (int i = 0; i < 4; i++)
+    if (pl.faultCounts[i] > bc) { bc = pl.faultCounts[i]; best = i; }
+
+  char body[360];
+  snprintf(body, sizeof(body),
+    "{\"pairingCode\":\"%s\",\"date\":\"%s\",\"goodReps\":%d,\"totalReps\":%d,"
+    "\"bestStreak\":%d,\"commonFault\":\"%s\",\"avgSpeed\":%.2f,"
+    "\"durationSeconds\":%lu}",
+    code, iso, pl.goodReps, pl.totalReps, pl.bestStreak,
+    best >= 0 ? FAULT_NAMES[best] : "none",
+    pl.speedSum / pl.totalReps, durSec);
+
+  String url = String(BACKEND_URL) + "/api/session";
+  WiFiClientSecure tlsC;
+  WiFiClient plainC;
+  HTTPClient http;
+  http.setTimeout(8000);
+  bool began;
+  if (url.startsWith("https")) { tlsC.setInsecure(); began = http.begin(tlsC, url); }
+  else                         { began = http.begin(plainC, url); }
+  if (!began) { Serial.println("[upload] http.begin failed"); return; }
+  http.addHeader("Content-Type", "application/json");
+  int status = http.POST((uint8_t*)body, strlen(body));
+  Serial.printf("[upload] P%d round summary -> HTTP %d\n", pl.id, status);
+  http.end();
+}
+
+void postRoundSessions(unsigned long durSec) {
+  sendSessionSummary(p[0], STATION_PAIRING_CODE, durSec);
+#ifdef STATION_PAIRING_CODE_P2
+  sendSessionSummary(p[1], STATION_PAIRING_CODE_P2, durSec);
+#else
+  if (p[1].totalReps > 0)
+    Serial.println("[upload] P2 skipped — no STATION_PAIRING_CODE_P2 configured");
+#endif
+}
+#endif  // BACKEND_URL
 
 void startRound() {
   int b0 = p[0].bestStreak;
@@ -216,6 +299,7 @@ void startRound() {
 }
 
 void endRound(int winnerId) {
+  unsigned long durSec = roundActive ? (millis() - roundStart) / 1000 : 0;
   roundActive  = false;
   neoIdleColor = 0;
   uint32_t flashCol = (winnerId == 1) ? matrix.Color(0, 0, 160)   // blue P1
@@ -228,6 +312,14 @@ void endRound(int winnerId) {
   else if (winnerId == 2) playClip(CUE_P2WIN);
   drawWinner(winnerId);
   Serial.printf("Round %d ended. Winner: P%d\n", roundNum, winnerId);
+
+#ifdef BACKEND_URL
+  // Upload after the win clip finishes — the TLS POST blocks, and blocking
+  // mid-clip would starve the audio buffer. Winner screen is static anyway.
+  unsigned long clipWait = millis() + 6000;
+  while (audioPlaying && millis() < clipWait) audio.loop();
+  postRoundSessions(durSec);
+#endif
 }
 
 // ── Process one incoming paddle UDP JSON message ──────────────────────────────
@@ -273,6 +365,8 @@ void processMsg() {
     pl.streak = 0;
     strncpy(pl.lastFault, faultType, 23);
     pl.lastFault[23] = 0;
+    for (int i = 0; i < 4; i++)
+      if (strcmp(faultType, FAULT_NAMES[i]) == 0) { pl.faultCounts[i]++; break; }
     Serial.printf("P%d FAULT  type=%s\n", pid, faultType);
     if      (strcmp(faultType, "paddleDropped") == 0) playClip(CUE_PADDLE);
     else if (strcmp(faultType, "slowReturn")    == 0) playClip(CUE_SLOW);
@@ -522,6 +616,8 @@ void setup() {
   }
   if (WiFi.status() == WL_CONNECTED) {
     Serial.printf("\nWiFi: %s\n", WiFi.localIP().toString().c_str());
+    // UTC clock for session timestamps — uploads skip until this syncs (~sec)
+    configTime(0, 0, "pool.ntp.org", "time.google.com");
   } else {
     Serial.println("\nWiFi (internet) failed — game runs offline; voice will retry on demand");
   }
@@ -599,14 +695,17 @@ void loop() {
   if (curReset == LOW && prevReset == HIGH) startRound();
   prevReset = curReset;
 
-  // VAD — always-on speech detection; sets voiceState=VS_SENDING on utterance
-  if (micOk) vadTick(audioPlaying);
+  // VAD — speech detection. Triggers are suppressed during clips AND during
+  // active rounds (ball impacts false-trigger otherwise); P4 still works.
+  if (micOk) vadTick(audioPlaying || roundActive);
 
-  // P4 button — manual force-trigger (fallback when VAD misses a quiet question)
+  // P4 button — push-to-talk: starts a recording (the old jump straight to
+  // VS_SENDING posted an empty buffer, which voicePost always rejected).
   bool curPTT = digitalRead(BTN_PTT);
   if (curPTT == LOW && prevPTT == HIGH && voiceState == VS_LISTEN) {
-    Serial.println("P4: forced voice query");
-    voiceState = VS_SENDING;
+    Serial.println("P4: push-to-talk — recording");
+    recSamples = 0;
+    voiceState = VS_RECORDING;   // silence detection commits it as usual
   }
   prevPTT = curPTT;
 
