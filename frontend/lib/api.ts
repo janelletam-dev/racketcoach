@@ -5,6 +5,8 @@
 import { redirect } from "next/navigation";
 import { BACKEND_URL } from "./config";
 
+// Mirrors a sessions row from the backend. keep in sync with
+// backend/src/db/schema.ts
 export type ApiSession = {
   id: string;
   userId: string;
@@ -14,6 +16,12 @@ export type ApiSession = {
   bestStreak: number;
   commonFault: string | null;
   avgSpeed: number | null;
+  durationSeconds: number | null;
+  // Analysis pipeline (B1). `analysis` + `drills` arrive as JSON strings; parse
+  // with lib/analysis. Null until the analyzer runs.
+  analysis: string | null;
+  drills: string | null;
+  analysisStatus: string | null;
   createdAt: string;
 };
 

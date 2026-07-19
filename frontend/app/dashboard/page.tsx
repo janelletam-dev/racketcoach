@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/session";
 import { getSessions } from "@/lib/api";
+import { parseAnalysis } from "@/lib/analysis";
 import {
   goodRepRate,
   pct,
@@ -50,6 +51,8 @@ export default async function DashboardPage() {
   }));
   const faults = faultBreakdown(sessions);
   const latest = sessions[0];
+  // Prefer the coach's own summary of the latest session when it exists.
+  const coachSummary = parseAnalysis(latest.analysis)?.summary;
 
   return (
     <main className="flex-1 w-full max-w-5xl mx-auto px-5 sm:px-8 py-10">
@@ -60,7 +63,7 @@ export default async function DashboardPage() {
           🏓
         </span>
         <p className="rc-term text-2xl sm:text-3xl leading-tight text-rc-ink">
-          {improvementLine(sessions)}
+          {coachSummary ?? improvementLine(sessions)}
         </p>
       </div>
 
