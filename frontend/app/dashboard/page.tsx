@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/session";
-import { getSessions } from "@/lib/api";
+import { getSessions, isCoachAvailable } from "@/lib/api";
 import { parseAnalysis } from "@/lib/analysis";
 import {
   goodRepRate,
@@ -17,6 +17,7 @@ import {
   StreakChart,
   FaultChart,
 } from "@/app/components/charts";
+import { AskCoach } from "./ask-coach";
 
 const COMING_SOON_LABEL: Record<string, string> = {
   tennis: "Tennis",
@@ -48,7 +49,12 @@ export default async function DashboardPage({
     </div>
   ) : null;
 
-  const sessions = await getSessions(token);
+  // Feature-detect B11's coach endpoint in parallel — no added latency, and the
+  // "Ask your coach" card stays hidden until cc2's POST /api/coach/ask is live.
+  const [sessions, coachAvailable] = await Promise.all([
+    getSessions(token),
+    isCoachAvailable(token),
+  ]);
 
   if (sessions.length === 0) {
     return (
@@ -115,6 +121,12 @@ export default async function DashboardPage({
           </div>
         </div>
       </Card>
+
+      {coachAvailable ? (
+        <div className="mb-6">
+          <AskCoach />
+        </div>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2 mb-6">
         <Card>

@@ -121,3 +121,52 @@ export async function setSport(token: string, sport: string): Promise<boolean> {
   });
   return res.ok;
 }
+
+export type CoachAnswer = {
+  answer?: string;
+  error?: string;
+  // The endpoint isn't deployed yet (404). Callers hide the feature rather than
+  // surfacing an error — keeps a frontend deploy safe ahead of cc2's B11 backend.
+  unavailable?: boolean;
+};
+
+/** Ask the web coach a question (B11). POST /api/coach/ask → { answer }. */
+export async function askCoach(
+  token: string,
+  question: string,
+): Promise<CoachAnswer> {
+  const res = await backendFetch("/api/coach/ask", {
+    token,
+    method: "POST",
+    body: { question },
+  });
+  if (res.status === 404) return { unavailable: true };
+  if (res.status === 401) return { error: "Please sign in again." };
+  if (!res.ok) {
+    return { error: "The coach couldn't answer that one. Try again." };
+  }
+  const data = (await res.json().catch(() => null)) as { answer?: string } | null;
+  if (!data?.answer) {
+    return { error: "The coach didn't have a read on that. Try rephrasing." };
+  }
+  return { answer: data.answer };
+}
+
+/**
+ * Feature-detect POST /api/coach/ask so the "Ask your coach" card can hide until
+ * the backend ships. A missing route 404s; a live route validates the empty body
+ * and returns 4xx — never a Claude call. Any non-404 (or an unreachable backend)
+ * fails safe: unreachable → hidden, present-but-erroring → shown.
+ */
+export async function isCoachAvailable(token: string): Promise<boolean> {
+  try {
+    const res = await backendFetch("/api/coach/ask", {
+      token,
+      method: "POST",
+      body: {},
+    });
+    return res.status !== 404;
+  } catch {
+    return false;
+  }
+}
