@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation";
-import { getSessionToken } from "@/lib/session";
-import { getMe, getMyPairing, claimPairing } from "@/lib/api";
+import { requireUser } from "@/lib/session";
+import { getMyPairing, claimPairing } from "@/lib/api";
 import { Header } from "@/app/components/header";
 import { Card, SectionLabel, PixelLink, Badge } from "@/app/components/ui";
 import { Qr } from "@/app/components/qr";
@@ -10,10 +9,7 @@ export default async function PairPage({
 }: {
   searchParams: Promise<{ code?: string }>;
 }) {
-  const token = await getSessionToken();
-  if (!token) redirect("/signin");
-  const user = await getMe(token);
-  if (!user) redirect("/signin");
+  const { token } = await requireUser();
 
   const { code: incoming } = await searchParams;
 

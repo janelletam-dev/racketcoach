@@ -1,7 +1,7 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getSessionToken } from "@/lib/session";
-import { getMe, getSession } from "@/lib/api";
+import { requireUser } from "@/lib/session";
+import { getSession } from "@/lib/api";
 import { goodRepRate, pct } from "@/lib/insights";
 import { formatDate } from "@/lib/format";
 import { Header } from "@/app/components/header";
@@ -12,10 +12,7 @@ export default async function SessionDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const token = await getSessionToken();
-  if (!token) redirect("/signin");
-  const user = await getMe(token);
-  if (!user) redirect("/signin");
+  const { token } = await requireUser();
 
   const { id } = await params;
   const s = await getSession(token, id);

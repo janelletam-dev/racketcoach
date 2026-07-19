@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getSessionToken } from "@/lib/session";
-import { getMe, getSessions } from "@/lib/api";
+import { requireUser } from "@/lib/session";
+import { getSessions } from "@/lib/api";
 import {
   goodRepRate,
   pct,
@@ -19,10 +18,7 @@ import {
 } from "@/app/components/charts";
 
 export default async function DashboardPage() {
-  const token = await getSessionToken();
-  if (!token) redirect("/signin");
-  const user = await getMe(token);
-  if (!user) redirect("/signin");
+  const { token } = await requireUser();
 
   const sessions = await getSessions(token);
 
