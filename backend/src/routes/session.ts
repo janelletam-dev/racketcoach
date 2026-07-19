@@ -28,6 +28,8 @@ const BodySchema = z.object({
   bestStreak: z.number().int().nonnegative(),
   commonFault: z.string(),
   avgSpeed: z.number(),
+  // Station-tracked session length (B6). Optional; absent stays null.
+  durationSeconds: z.number().nonnegative().optional(),
   // Optional §2 aggregates (B2-addendum). Absent = not measured.
   signals: boardSignalsSchema.optional(),
 });
@@ -103,6 +105,7 @@ sessionRoute.post("/", async (c) => {
       bestStreak: body.bestStreak,
       commonFault: body.commonFault,
       avgSpeed: body.avgSpeed,
+      durationSeconds: body.durationSeconds ?? null,
       signals: body.signals ? JSON.stringify({ imu: body.signals }) : null,
       analysisStatus: hasRaw ? "pending" : null,
     })
