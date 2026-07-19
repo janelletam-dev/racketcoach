@@ -378,6 +378,52 @@ never re-shown. Rationale: demonstrates the coaching layer generalizes (a new
 sport = a new cue library + thresholds, per coaching-knowledge.md §7) without
 claiming unmeasured ground. Nice-to-have — do not let it displace B5/B3.
 
+### B11. Web voice coach — "Ask your coach" on the dashboard
+The player asks about their play on the web app and gets in-depth, grounded
+insight. Distinct from the station's spoken 2-sentence cue: web answers may
+be long-form, but the guardrail is identical — ground everything in the
+player's MEASURED history; never invent observations.
+
+Backend (cc2): `POST /api/coach/ask` — Bearer-authorized (the web user is
+logged in; no device token), body `{ question: string }` (accept optional
+audio later; text first). Server pulls the user's sessions + signals +
+existing analyses, builds a "web coach" prompt from `coaching/prompts.ts`
+(new variant: in-depth allowed, cite the player's actual numbers, §5
+guardrail enforced from signals present), calls Claude, returns
+`{ answer: string }`. Optional phase 2: `?speak=1` also returns ElevenLabs
+audio for a play button. Reuse B3's history/trend assembly — do not
+duplicate it.
+
+Frontend (cc1): an "ASK YOUR COACH" card on the dashboard (and session
+page): text input + submit, answer rendered in the retro card style;
+optional mic input later via Web Speech API. Loading state while Claude
+thinks (~5-10s); errors render honestly per A11.
+
+Demo value: judges watch a player ask "why do I keep hitting late?" and the
+coach answers citing their real fault counts and trend. Priority: after B7
+salvage lands (shares the coaching/ plumbing); before cue-clip generation.
+
+### B12. Session detail page — from "demo card" to product (frontend, cc1)
+Current state: one small stat card + dead space. This page is where judges
+stare during the analysis money shot — it needs presence. Scope (retro theme
+throughout, no new backend):
+1. **Hero**: big good-rep % with a progress ring, and a delta badge vs the
+   previous session ("▲ +15% vs last session") — data already in the
+   sessions list. Header line: date · time · duration ("–" stays honest).
+2. **Coach section ALWAYS renders**, three states: analyzed → Coach's read +
+   drills; pending → "Coach is reviewing this session…"; null/pre-pipeline
+   → "No analysis for this session" (never silently absent — the current
+   page shows nothing, which reads as broken).
+3. **Context strip**: mini form-score trend chart with THIS session's dot
+   highlighted (reuse dashboard chart component), + "vs your best" tile.
+4. **Signals card** when `signals` exist (real station sessions): avg
+   consistency, face-drop rate, avg return time — plain-language labels
+   ("Reset speed: 0.9s — quick!").
+5. Layout: fill the page — two-column on desktop (stats+signals left,
+   coach+trend right). Fix the low-contrast "BACK TO DASHBOARD" link.
+Priority: alongside/right after B11's frontend card — same surface, one
+styling pass.
+
 ### B8. Coaching knowledge layer — `backend/src/coaching/`
 `docs/coaching-knowledge.md` is the source of truth (cue library, guardrails,
 prompts, signal schema). Implement its §8 mapping: `cueLibrary.ts`,

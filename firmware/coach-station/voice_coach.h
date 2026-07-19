@@ -234,11 +234,13 @@ bool voicePost(Audio& audio, bool sdOk,
   if (WiFi.status() != WL_CONNECTED) return false;
   if (!sdOk || !recBuf || recSamples < MIC_RATE / 4) return false;
 
-  // Build URL — player context as query params
+  // Build URL — player context as query params. VOICE_ENDPOINT_URL may
+  // already carry ?key=..., so join with '&' in that case (double-? fix).
   char url[320];
+  char sep = strchr(VOICE_ENDPOINT_URL, '?') ? '&' : '?';
   snprintf(url, sizeof(url),
-    "%s?player=%d&goodReps=%d&streak=%d&bestStreak=%d&avgSpeed=%.1f",
-    VOICE_ENDPOINT_URL, playerId, goodReps, streak, bestStreak, avgSpeed);
+    "%s%cplayer=%d&goodReps=%d&streak=%d&bestStreak=%d&avgSpeed=%.1f",
+    VOICE_ENDPOINT_URL, sep, playerId, goodReps, streak, bestStreak, avgSpeed);
 
   // Prepend WAV header to PCM in one PSRAM blob
   uint32_t wavSz = 44 + (uint32_t)recSamples * 2;
@@ -251,6 +253,7 @@ bool voicePost(Audio& audio, bool sdOk,
   tls.setInsecure();            // backend key is in the URL; TLS for transport only
   HTTPClient http;
   http.begin(tls, url);
+  http.setTimeout(25000);       // STT→Claude→TTS takes 10-20s; default 5s cuts it off
   http.addHeader("Content-Type", "audio/wav");
   Serial.printf("Voice: POST %u B to backend\n", wavSz);
   int code = http.POST(blob, (size_t)wavSz);

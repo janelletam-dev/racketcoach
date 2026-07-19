@@ -50,8 +50,7 @@ thinks, Claude explains, Linkup proves it."**
       · NEXT_PUBLIC_APP_URL + FRONTEND_URL wired ✅
       · Resend live: magic-link email arrives and signs in ✅ (auth loop
         verified end-to-end on prod)
-      · Pairing code CLAIMED (Janelle's account) ✅ — code lives in station
-        secrets.h, kept out of the repo (it authorizes session writes)
+      · Pairing code CLAIMED: **`<PAIRING_CODE>`** (Janelle's account) ✅
       · NEXT: `<PAIRING_CODE>` + BACKEND_URL into station secrets.h → reflash
         (bundles the signals-upload upgrade) — 🙋
       · cc2: demo-data.sh <PAIRING_CODE> + A15 restart proof — 🤖
@@ -71,9 +70,10 @@ thinks, Claude explains, Linkup proves it."**
 
 ## 3. Demo-day prep (the night before)
 
-- [ ] **Demo data**: run `backend/scripts/demo-data.sh` once against prod —
-      claims a pairing code, POSTs 5 rising sessions via the public board
-      API, so the dashboard opens on the 42%→71% story, not a blank page.
+- [x] **Demo data** — ✅ live: dashboard shows 5 sessions + the 42%→71%
+      line + charts; session detail renders date · time · honest "–"
+      duration. cc1's hang fix confirmed on prod. (Demo sessions have no
+      duration/signals — real station uploads will.)
 - [ ] **Cue clips on SD** (station) — all §4 cue-library lines, generated in
       the SAME ElevenLabs voice as `/api/voice` (`generate-cues.ts`), plus
       the existing game clips. Verify each plays (D2 method).
