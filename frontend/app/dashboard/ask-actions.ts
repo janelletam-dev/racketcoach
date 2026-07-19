@@ -37,13 +37,27 @@ export async function askCoachAction(
   return { answer: result.answer, question };
 }
 
+// /api/coach/speak caps text at 600 chars, but answers can be long-form. Trim to
+// the last full sentence under the cap so a long answer still speaks cleanly
+// instead of 400-ing (the spoken version can be shorter than the shown text).
+function fitForTts(text: string, max = 600): string {
+  if (text.length <= max) return text;
+  const slice = text.slice(0, max);
+  const stop = Math.max(
+    slice.lastIndexOf(". "),
+    slice.lastIndexOf("! "),
+    slice.lastIndexOf("? "),
+  );
+  return stop > max * 0.5 ? slice.slice(0, stop + 1) : slice.trimEnd();
+}
+
 /** TTS: speak the coach's answer in the chosen ElevenLabs voice (Anya/Miles ->
  *  female/male). Returns base64 MP3 for the browser to play. Called directly. */
 export async function speakAction(
   text: string,
   voice: VoiceGender,
 ): Promise<{ audio?: string; error?: string }> {
-  const clean = text?.trim();
+  const clean = fitForTts(text?.trim() ?? "");
   if (!clean) return { error: "Nothing to play." };
   const token = await getSessionToken();
   if (!token) return { error: "Please sign in again." };
