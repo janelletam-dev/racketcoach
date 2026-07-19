@@ -349,6 +349,27 @@ at end of a rep set: `{pairingCode, metrics}` validated by
 `coaching/signals.ts`; backend attaches them to that user's latest session.
 See `docs/architecture.md` D3/D6 and wire contract #3.
 
+### B10-backend. Sport onboarding — backend half (frontend SHIPPED, 1162374)
+The frontend is live but dormant: it gates strictly on `sport === null`, so
+nothing activates until the column exists. Land ALL THREE in ONE commit
+(partial landing causes an onboarding redirect loop):
+1. Nullable `sport` text column on `user` (Drizzle schema + migration).
+2. Include `sport` in `GET /api/auth/me`.
+3. `POST /api/auth/sport` — Bearer-authorized, body `{ sport }`, validate
+   against `table_tennis | tennis | badminton | padel`, 200 on success.
+   (Frontend calls this exact path; if you prefer another, tell cc1 — it's
+   a one-line change on their side.)
+
+### B10. (Optional, post-B5) Sport-selection onboarding
+One-time screen after first sign-in: "What sport do you want to improve?"
+Table tennis ACTIVE; tennis/badminton/padel shown as "coming soon" (tappable
+→ stores interest, lands in table tennis with a friendly note). Honesty rule
+applies to sports: never imply the others work today. Impl: nullable `sport`
+text column on `user`, one server action, one page (frontend lane), skippable,
+never re-shown. Rationale: demonstrates the coaching layer generalizes (a new
+sport = a new cue library + thresholds, per coaching-knowledge.md §7) without
+claiming unmeasured ground. Nice-to-have — do not let it displace B5/B3.
+
 ### B8. Coaching knowledge layer — `backend/src/coaching/`
 `docs/coaching-knowledge.md` is the source of truth (cue library, guardrails,
 prompts, signal schema). Implement its §8 mapping: `cueLibrary.ts`,
