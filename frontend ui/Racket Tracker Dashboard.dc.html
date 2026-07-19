@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+html{scroll-behavior:smooth}
+body{margin:0;background:oklch(97% 0.004 250);font-family:Archivo,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:oklch(52% 0.16 235);text-decoration:none}
+a:hover{color:oklch(45% 0.16 235)}
+*{box-sizing:border-box}
+</style>
+</helmet>
+
+<div style="min-width:1280px;color:oklch(16% 0.02 250)">
+
+<!-- NAV -->
+<div style="display:flex;align-items:center;justify-content:space-between;padding:20px 48px;background:oklch(97% 0.004 250)">
+  <div style="display:flex;align-items:center;gap:10px">
+    <img src="uploads/download (6).jpg" style="height:26px;width:auto;object-fit:contain;flex:none" alt="Rally logo">
+    <span style="font:900 20px Archivo;letter-spacing:-0.02em">RALLY</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:36px;font:600 14px Archivo;color:oklch(45% 0.02 250)">
+    <a href="#dashboard" style="color:oklch(16% 0.02 250);position:relative;padding-bottom:4px;border-bottom:3px solid oklch(88% 0.24 122)">Dashboard</a>
+    <a href="#sessions" style="color:oklch(45% 0.02 250)">Sessions</a>
+    <a href="#hardware" style="color:oklch(45% 0.02 250)">Hardware</a>
+    <a href="#insights" style="color:oklch(45% 0.02 250)">Insights</a>
+  </div>
+  <div style="display:flex;align-items:center;gap:16px">
+    <div style="display:flex;align-items:center;gap:6px;font:600 12px 'IBM Plex Mono';color:oklch(52% 0.16 235);background:oklch(93% 0.05 235);padding:6px 12px;border-radius:20px">
+      <span style="width:7px;height:7px;border-radius:50%;background:oklch(52% 0.16 235)"></span>SENSOR LIVE
+    </div>
+    <div style="width:36px;height:36px;border-radius:50%;background:oklch(90% 0.005 250);display:flex;align-items:center;justify-content:center;font:700 12px Archivo;color:oklch(45% 0.02 250)">AL</div>
+  </div>
+</div>
+
+<!-- HERO -->
+<div id="dashboard" style="background:oklch(50% 0.17 235);padding:44px 48px 56px;position:relative;overflow:hidden;scroll-margin-top:20px">
+  <canvas ref="{{ netCanvasRef }}" style="position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none"></canvas>
+  <div style="display:grid;grid-template-columns:1fr 560px;gap:40px;align-items:start;position:relative;z-index:1">
+    <div>
+      <div style="font:600 13px 'IBM Plex Mono';color:oklch(85% 0.05 235);letter-spacing:0.08em;margin-bottom:10px">GOOD AFTERNOON, ALEX &middot; SESSION #128</div>
+      <div style="font:900 50px/1.05 Archivo;color:#fff;letter-spacing:-0.02em;max-width:520px">Your swing is getting sharper.</div>
+      <div style="display:flex;gap:36px;margin-top:36px">
+        <sc-for list="{{ statBlocks }}" as="s" hint-placeholder-count="4">
+          <div style="flex:none">
+            <div style="font:700 40px 'IBM Plex Mono';color:oklch(88% 0.24 122);letter-spacing:-0.01em;white-space:nowrap">{{ s.value }}<span style="font:600 18px 'IBM Plex Mono';color:oklch(85% 0.05 235)">{{ s.unit }}</span></div>
+            <div style="font:600 12px 'IBM Plex Mono';color:oklch(85% 0.05 235);letter-spacing:0.06em;margin-top:4px">{{ s.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="position:relative;height:340px;border-radius:18px;border:1px dashed oklch(85% 0.05 235 / 0.5)">
+      <svg viewBox="0 0 560 340" style="width:100%;height:100%;position:absolute;inset:0">
+        <path d="M20 300 Q140 40 260 260" fill="none" stroke="oklch(88% 0.24 122)" stroke-width="2"/>
+        <path d="M260 260 Q340 120 420 220" fill="none" stroke="oklch(88% 0.24 122)" stroke-width="2" opacity="0.65"/>
+        <path d="M420 220 Q480 150 540 210" fill="none" stroke="oklch(88% 0.24 122)" stroke-width="2" opacity="0.4"/>
+        <line x1="20" y1="300" x2="540" y2="300" stroke="oklch(85% 0.05 235)" stroke-width="1" stroke-dasharray="4 5"/>
+        <circle cx="20" cy="300" r="15" fill="none" stroke="oklch(85% 0.05 235)" stroke-width="1" stroke-dasharray="2 4"/>
+        <circle cx="20" cy="300" r="7" fill="oklch(88% 0.24 122)"/>
+        <path d="M13 296 Q20 306 27 296" stroke="oklch(50% 0.17 235)" stroke-width="1.2" fill="none"/>
+        <circle cx="260" cy="260" r="7" fill="oklch(88% 0.24 122)"/>
+        <path d="M253 256 Q260 266 267 256" stroke="oklch(50% 0.17 235)" stroke-width="1.2" fill="none"/>
+        <circle cx="420" cy="220" r="6" fill="none" stroke="oklch(88% 0.24 122)" stroke-width="2"/>
+        <path d="M420 220 L470 190" stroke="#fff" stroke-width="1.2" stroke-dasharray="3 3"/>
+        <path d="M470 190 L461 189 L465 197 Z" fill="#fff"/>
+        <path d="M403 234 A24 24 0 0 1 428 237" fill="none" stroke="#fff" stroke-width="1"/>
+      </svg>
+      <div style="position:absolute;left:6px;top:232px;font:500 11px 'IBM Plex Mono';color:#fff;pointer-events:none">SPIN</div>
+      <div style="position:absolute;left:432px;top:168px;font:500 11px 'IBM Plex Mono';color:#fff;pointer-events:none">42&deg; EXIT</div>
+      <div style="position:absolute;right:12px;bottom:10px;font:500 11px 'IBM Plex Mono';color:#fff;text-align:right">TRAJECTORY REPLAY &middot; SERVE</div>
+    </div>
+  </div>
+</div>
+
+<!-- SESSION REPLAY -->
+<div id="sessions" style="background:oklch(50% 0.17 235);padding:0 48px 48px;scroll-margin-top:20px">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:22px 0;font:600 12px 'IBM Plex Mono';color:oklch(85% 0.05 235);letter-spacing:0.08em">
+    <span>SESSION REPLAY</span>
+    <span>SW&middot;04</span>
+  </div>
+  <div style="position:relative;height:460px;border-radius:16px;overflow:hidden;background:oklch(46% 0.14 235)">
+    <svg viewBox="0 0 100 58" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
+      <line x1="0" y1="9.7" x2="100" y2="9.7" stroke="#fff" stroke-width="0.15" opacity="0.15"/>
+      <line x1="0" y1="19.3" x2="100" y2="19.3" stroke="#fff" stroke-width="0.15" opacity="0.15"/>
+      <line x1="0" y1="29" x2="100" y2="29" stroke="#fff" stroke-width="0.15" opacity="0.15"/>
+      <line x1="0" y1="38.7" x2="100" y2="38.7" stroke="#fff" stroke-width="0.15" opacity="0.15"/>
+      <line x1="0" y1="48.3" x2="100" y2="48.3" stroke="#fff" stroke-width="0.15" opacity="0.15"/>
+      <line x1="10" y1="0" x2="10" y2="58" stroke="#fff" stroke-width="0.15" opacity="0.15"/>
+      <line x1="30" y1="0" x2="30" y2="58" stroke="#fff" stroke-width="0.15" opacity="0.15"/>
+      <line x1="50" y1="0" x2="50" y2="58" stroke="#fff" stroke-width="0.15" opacity="0.15"/>
+      <line x1="70" y1="0" x2="70" y2="58" stroke="#fff" stroke-width="0.15" opacity="0.15"/>
+      <line x1="90" y1="0" x2="90" y2="58" stroke="#fff" stroke-width="0.15" opacity="0.15"/>
+      <path d="M2 4.6 Q24 -6 46 15.1 Q64 30 50 46.4 Q70 30 92 10.4" fill="none" stroke="oklch(88% 0.24 122)" stroke-width="0.5"/>
+      <circle cx="2" cy="4.6" r="2.2" fill="oklch(88% 0.24 122)"/>
+      <path d="M0.4 4 Q2 5.8 3.6 4" stroke="oklch(46% 0.14 235)" stroke-width="0.3" fill="none"/>
+      <circle cx="46" cy="15.1" r="2.2" fill="oklch(88% 0.24 122)"/>
+      <path d="M44.4 14.5 Q46 16.3 47.6 14.5" stroke="oklch(46% 0.14 235)" stroke-width="0.3" fill="none"/>
+      <circle cx="50" cy="46.4" r="2.2" fill="oklch(88% 0.24 122)"/>
+      <path d="M48.4 45.8 Q50 47.6 51.6 45.8" stroke="oklch(46% 0.14 235)" stroke-width="0.3" fill="none"/>
+      <circle cx="92" cy="10.4" r="2.2" fill="oklch(88% 0.24 122)"/>
+      <path d="M90.4 9.8 Q92 11.6 93.6 9.8" stroke="oklch(46% 0.14 235)" stroke-width="0.3" fill="none"/>
+      <path d="M50 46.4 L60 41" stroke="#fff" stroke-width="0.4" stroke-dasharray="1 1"/>
+      <path d="M60 41 L57.5 41 L59 38.5 Z" fill="#fff"/>
+      <path d="M42 42 A9 9 0 0 1 46 34" fill="none" stroke="#fff" stroke-width="0.4"/>
+    </svg>
+    <div style="position:absolute;left:1%;top:5%;font:600 12px 'IBM Plex Mono';color:oklch(88% 0.24 122)">a.</div>
+    <div style="position:absolute;left:44%;top:22%;font:600 12px 'IBM Plex Mono';color:oklch(88% 0.24 122)">b.</div>
+    <div style="position:absolute;left:48%;top:78%;font:600 12px 'IBM Plex Mono';color:oklch(88% 0.24 122)">c.</div>
+    <div style="position:absolute;left:90%;top:14%;font:600 12px 'IBM Plex Mono';color:oklch(88% 0.24 122)">d.</div>
+    <div style="position:absolute;left:52%;top:19%;font:500 11px 'IBM Plex Mono';color:#fff">VELOCITY&nbsp;32&nbsp;M/S</div>
+    <div style="position:absolute;left:54%;top:70%;font:500 11px 'IBM Plex Mono';color:#fff">ANGLE&nbsp;118&deg;</div>
+  </div>
+</div>
+
+<!-- CONTENT GRID -->
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;padding:32px 48px">
+
+  <div style="background:#fff;border:1px solid oklch(90% 0.005 250);border-radius:14px;padding:28px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">
+      <div style="font:700 18px Archivo">Movement Review</div>
+      <div style="display:flex;gap:4px;background:oklch(97% 0.004 250);border-radius:20px;padding:3px">
+        <button onClick="{{ setPeriod }}" data-val="session" style="border:none;background:{{ periodSessionBg }};color:{{ periodSessionColor }};font:600 12px Archivo;padding:7px 14px;border-radius:18px;cursor:pointer">Session</button>
+        <button onClick="{{ setPeriod }}" data-val="week" style="border:none;background:{{ periodWeekBg }};color:{{ periodWeekColor }};font:600 12px Archivo;padding:7px 14px;border-radius:18px;cursor:pointer">This Week</button>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <sc-for list="{{ breakdownBars }}" as="b" hint-placeholder-count="3">
+        <div>
+          <div style="display:flex;justify-content:space-between;font:600 13px Archivo;color:oklch(45% 0.02 250);margin-bottom:6px">
+            <span>{{ b.label }}</span>
+            <span style="font:600 13px 'IBM Plex Mono';color:oklch(16% 0.02 250)">{{ b.display }}</span>
+          </div>
+          <div style="height:10px;background:oklch(95% 0.004 250);border-radius:6px;overflow:hidden">
+            <div style="height:100%;width:{{ b.pct }}%;background:{{ b.color }};border-radius:6px"></div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div id="hardware" style="background:#fff;border:1px solid oklch(90% 0.005 250);border-radius:14px;padding:28px;scroll-margin-top:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div style="font:700 18px Archivo">Hardware</div>
+      <div style="display:flex;align-items:center;gap:6px;font:600 11px 'IBM Plex Mono';color:{{ hardware.statusColor }}">
+        <span style="width:7px;height:7px;border-radius:50%;background:{{ hardware.statusColor }}"></span>{{ hardware.statusLabel }}
+      </div>
+    </div>
+
+    <div style="border:1px dashed oklch(85% 0.01 250);border-radius:10px;padding:14px;position:relative;height:150px;margin-bottom:20px;background:oklch(98% 0.002 250)">
+      <div style="position:absolute;left:50%;top:0;bottom:0;width:1px;background:oklch(88% 0.01 250)"></div>
+      <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:oklch(88% 0.01 250)"></div>
+      <sc-for list="{{ positionDots }}" as="p" hint-placeholder-count="10">
+        <div style="position:absolute;left:{{ p.x }}%;top:{{ p.y }}%;width:6px;height:6px;border-radius:50%;background:oklch(52% 0.16 235);transform:translate(-50%,-50%)"></div>
+      </sc-for>
+      <div style="position:absolute;left:8px;bottom:6px;font:500 10px 'IBM Plex Mono';color:oklch(60% 0.01 250)">SWING PATH &middot; XY</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <sc-for list="{{ hardwareFields }}" as="f" hint-placeholder-count="5">
+        <div style="display:flex;justify-content:space-between;font:500 13px Archivo">
+          <span style="color:oklch(45% 0.02 250)">{{ f.label }}</span>
+          <span style="font:600 13px 'IBM Plex Mono';color:oklch(16% 0.02 250)">{{ f.value }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+
+<!-- FEEDBACK -->
+<div id="insights" style="padding:8px 48px 56px;scroll-margin-top:20px">
+  <div style="background:#fff;border:1px solid oklch(90% 0.005 250);border-radius:14px;padding:28px 32px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:16px">
+      <div>
+        <div style="font:700 18px Archivo">What to work on</div>
+        <div style="font:500 13px Archivo;color:oklch(45% 0.02 250);margin-top:4px">Based on your last session</div>
+      </div>
+      <div style="display:flex;gap:4px;background:oklch(97% 0.004 250);border-radius:20px;padding:3px">
+        <button onClick="{{ setTabCards }}" style="border:none;background:{{ tabCardsBg }};color:{{ tabCardsColor }};font:600 12px Archivo;padding:8px 16px;border-radius:18px;cursor:pointer">Cards</button>
+        <button onClick="{{ setTabComparison }}" style="border:none;background:{{ tabComparisonBg }};color:{{ tabComparisonColor }};font:600 12px Archivo;padding:8px 16px;border-radius:18px;cursor:pointer">Comparison</button>
+        <button onClick="{{ setTabNarrative }}" style="border:none;background:{{ tabNarrativeBg }};color:{{ tabNarrativeColor }};font:600 12px Archivo;padding:8px 16px;border-radius:18px;cursor:pointer">Narrative</button>
+      </div>
+    </div>
+
+    <sc-if value="{{ isCards }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px">
+        <sc-for list="{{ cards }}" as="c" hint-placeholder-count="3">
+          <div style="border:1px solid oklch(92% 0.005 250);border-radius:12px;padding:20px">
+            <div style="display:inline-block;font:700 11px 'IBM Plex Mono';letter-spacing:0.05em;color:{{ c.tagColor }};background:{{ c.tagBg }};padding:4px 10px;border-radius:6px;margin-bottom:14px">{{ c.tag }}</div>
+            <div style="font:600 14px/1.5 Archivo;color:oklch(16% 0.02 250)">{{ c.tip }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isComparison }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:10px 4px;font:600 11px 'IBM Plex Mono';color:oklch(55% 0.01 250);letter-spacing:0.04em">
+          <span>METRIC</span><span>THIS SESSION</span><span>LAST 5 AVG</span><span>DELTA</span>
+        </div>
+        <sc-for list="{{ comparisonRows }}" as="r" hint-placeholder-count="3">
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:14px 4px;border-top:1px solid oklch(94% 0.004 250);align-items:center;font:600 14px Archivo">
+            <span>{{ r.metric }}</span>
+            <span style="font:600 14px 'IBM Plex Mono'">{{ r.current }}</span>
+            <span style="font:600 14px 'IBM Plex Mono';color:oklch(55% 0.01 250)">{{ r.avg }}</span>
+            <span style="font:700 14px 'IBM Plex Mono';color:{{ r.deltaColor }}">{{ r.delta }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isNarrative }}" hint-placeholder-val="{{ false }}">
+      <div style="max-width:640px">
+        <div style="font:700 24px/1.5 Archivo;color:oklch(16% 0.02 250)">{{ narrativeText }}</div>
+        <div style="font:600 12px 'IBM Plex Mono';color:oklch(55% 0.01 250);margin-top:18px">AI COACH &middot; SESSION #128 &middot; JUL 18</div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1000},&quot;speedUnit&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;mph&quot;,&quot;kmh&quot;],&quot;default&quot;:&quot;kmh&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;sensorStatus&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;connected&quot;,&quot;syncing&quot;,&quot;offline&quot;],&quot;default&quot;:&quot;connected&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;},&quot;defaultFeedbackView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cards&quot;,&quot;comparison&quot;,&quot;narrative&quot;],&quot;default&quot;:&quot;cards&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behavior&quot;}}">
+class Component extends DCLogic {
+  state = { feedbackTab: this.props.defaultFeedbackView ?? 'cards', period: 'session' };
+  netCanvasRef = React.createRef();
+
+  setPeriod = (e) => this.setState({ period: e.currentTarget.dataset.val });
+
+  componentDidMount() {
+    const canvas = this.netCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const host = canvas.parentElement;
+    const net = { nodes: [], cols: 0, rows: 0, w: 0, h: 0, raf: null };
+    const mouse = { x: -9999, y: -9999 };
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const spacing = 56;
+
+    const setup = () => {
+      const rect = host.getBoundingClientRect();
+      const w = rect.width, h = rect.height;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const cols = Math.ceil(w / spacing) + 1;
+      const rows = Math.ceil(h / spacing) + 1;
+      const nodes = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) nodes.push({ x: c * spacing, y: r * spacing, ox: 0, oy: 0 });
+      }
+      net.cols = cols; net.rows = rows; net.nodes = nodes; net.w = w; net.h = h;
+    };
+    setup();
+
+    const onMove = (e) => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
+    };
+    const onLeave = () => { mouse.x = -9999; mouse.y = -9999; };
+    host.addEventListener('mousemove', onMove);
+    host.addEventListener('mouseleave', onLeave);
+
+    const ro = new ResizeObserver(() => setup());
+    ro.observe(host);
+
+    let t = 0;
+    const radius = 150, strength = 26;
+    const loop = () => {
+      t += 0.02;
+      const { nodes, cols, rows } = net;
+      for (const n of nodes) {
+        const dx = n.x - mouse.x, dy = n.y - mouse.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        let tx = 0, ty = 0;
+        if (dist < radius) {
+          const f = 1 - dist / radius;
+          const push = f * f * strength;
+          const ang = Math.atan2(dy, dx);
+          tx = Math.cos(ang) * push;
+          ty = Math.sin(ang) * push;
+        }
+        tx += Math.sin(t + n.x * 0.02) * 1.5;
+        ty += Math.cos(t + n.y * 0.02) * 1.5;
+        n.ox += (tx - n.ox) * 0.12;
+        n.oy += (ty - n.oy) * 0.12;
+      }
+      ctx.clearRect(0, 0, net.w, net.h);
+      const at = (r, c) => nodes[r * cols + c];
+      for (let r = 0; r < rows; r++) {
+        ctx.lineWidth = r % 2 === 0 ? 2 : 1;
+        ctx.strokeStyle = r % 2 === 0 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.3)';
+        ctx.beginPath();
+        for (let c = 0; c < cols; c++) {
+          const n = at(r, c);
+          const x = n.x + n.ox, y = n.y + n.oy;
+          if (c === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      for (let c = 0; c < cols; c++) {
+        ctx.lineWidth = c % 2 === 0 ? 2 : 1;
+        ctx.strokeStyle = c % 2 === 0 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.3)';
+        ctx.beginPath();
+        for (let r = 0; r < rows; r++) {
+          const n = at(r, c);
+          const x = n.x + n.ox, y = n.y + n.oy;
+          if (r === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      net.raf = requestAnimationFrame(loop);
+    };
+    loop();
+
+    this._net = net;
+    this._netCleanup = () => {
+      cancelAnimationFrame(net.raf);
+      host.removeEventListener('mousemove', onMove);
+      host.removeEventListener('mouseleave', onLeave);
+      ro.disconnect();
+    };
+  }
+
+  componentWillUnmount() {
+    if (this._netCleanup) this._netCleanup();
+  }
+
+  renderVals() {
+    const unit = this.props.speedUnit ?? 'mph';
+    const conv = (mph) => unit === 'kmh' ? Math.round(mph * 1.60934) : mph;
+    const unitLabel = unit === 'kmh' ? 'km/h' : 'mph';
+    const p = this.state.period;
+
+    const statBlocks = [
+      { label: 'SWING SPEED', value: conv(p === 'session' ? 94 : 91), unit: ' ' + unitLabel },
+      { label: 'PEAK POWER', value: p === 'session' ? '1,340' : '1,290', unit: ' W' },
+      { label: 'SWEET SPOT ACC.', value: p === 'session' ? 82 : 78, unit: '%' },
+      { label: 'SESSIONS', value: p === 'session' ? 1 : 4, unit: '' },
+    ];
+
+    const bars = [
+      { label: 'Serve', mph: 108 },
+      { label: 'Forehand', mph: 71 },
+      { label: 'Backhand', mph: 64 },
+    ];
+    const max = 120;
+    const breakdownBars = bars.map((b, i) => ({
+      label: b.label,
+      display: conv(b.mph) + ' ' + unitLabel,
+      pct: Math.round((b.mph / max) * 100),
+      color: i === 0 ? 'oklch(88% 0.24 122)' : 'oklch(52% 0.16 235)',
+    }));
+
+    const sensorStatus = this.props.sensorStatus ?? 'connected';
+    const statusMap = {
+      connected: { label: 'CONNECTED · 68%', color: 'oklch(52% 0.16 235)' },
+      syncing: { label: 'SYNCING…', color: 'oklch(60% 0.14 122)' },
+      offline: { label: 'OFFLINE', color: 'oklch(45% 0.02 250)' },
+    };
+    const st = statusMap[sensorStatus] ?? statusMap.connected;
+    const hardware = { statusLabel: st.label, statusColor: st.color };
+    const hardwareFields = [
+      { label: 'Position tracking', value: sensorStatus === 'offline' ? '—' : 'Live · 6-axis' },
+      { label: 'Mount', value: 'Butt cap' },
+      { label: 'Last sync', value: sensorStatus === 'offline' ? '3h ago' : '2 min ago' },
+      { label: 'Firmware', value: 'v2.3.1' },
+      { label: 'Calibration', value: 'Optimal' },
+    ];
+    const positionDots = [
+      { x: 30, y: 40 }, { x: 45, y: 35 }, { x: 55, y: 50 }, { x: 62, y: 30 }, { x: 40, y: 60 },
+      { x: 70, y: 55 }, { x: 50, y: 25 }, { x: 35, y: 70 }, { x: 65, y: 65 }, { x: 48, y: 45 },
+    ];
+
+    const cards = [
+      { tag: 'SERVE', tagColor: 'oklch(50% 0.17 235)', tagBg: 'oklch(93% 0.05 235)', tip: 'Toss is drifting left — aim contact point 6in further right for straighter power.' },
+      { tag: 'FOOTWORK', tagColor: 'oklch(45% 0.02 250)', tagBg: 'oklch(95% 0.004 250)', tip: 'Split-step timing lags 80ms behind ball bounce on returns.' },
+      { tag: 'FOREHAND', tagColor: 'oklch(50% 0.17 235)', tagBg: 'oklch(93% 0.05 235)', tip: 'Follow-through angle dropped below 120°, wrist snapping early.' },
+    ];
+
+    const comparisonRows = [
+      { metric: 'Swing Speed', current: conv(94) + ' ' + unitLabel, avg: conv(89) + ' ' + unitLabel, delta: '▲ +5', deltaColor: 'oklch(55% 0.18 122)' },
+      { metric: 'Sweet Spot Accuracy', current: '82%', avg: '76%', delta: '▲ +6', deltaColor: 'oklch(55% 0.18 122)' },
+      { metric: 'Follow-through Angle', current: '118°', avg: '124°', delta: '▼ -6', deltaColor: 'oklch(16% 0.02 250)' },
+    ];
+
+    const narrativeText = "\"Your serve speed is trending up nicely this week, but the follow-through is cutting short — extend the wrist rotation a beat longer and you'll add both spin and control. Footwork recovery between rallies is the next thing worth drilling.\"";
+
+    const tab = this.state.feedbackTab;
+    const tabStyle = (name) => ({
+      bg: tab === name ? '#fff' : 'transparent',
+      color: tab === name ? 'oklch(16% 0.02 250)' : 'oklch(50% 0.01 250)',
+    });
+    const tc = tabStyle('cards'), tcm = tabStyle('comparison'), tn = tabStyle('narrative');
+    const ps = (v) => this.state.period === v;
+
+    return {
+      netCanvasRef: this.netCanvasRef,
+      statBlocks, breakdownBars, hardware, hardwareFields, positionDots, cards, comparisonRows, narrativeText,
+      setPeriod: this.setPeriod,
+      periodSessionBg: ps('session') ? '#fff' : 'transparent',
+      periodSessionColor: ps('session') ? 'oklch(16% 0.02 250)' : 'oklch(50% 0.01 250)',
+      periodWeekBg: ps('week') ? '#fff' : 'transparent',
+      periodWeekColor: ps('week') ? 'oklch(16% 0.02 250)' : 'oklch(50% 0.01 250)',
+      isCards: tab === 'cards', isComparison: tab === 'comparison', isNarrative: tab === 'narrative',
+      setTabCards: () => this.setState({ feedbackTab: 'cards' }),
+      setTabComparison: () => this.setState({ feedbackTab: 'comparison' }),
+      setTabNarrative: () => this.setState({ feedbackTab: 'narrative' }),
+      tabCardsBg: tc.bg, tabCardsColor: tc.color,
+      tabComparisonBg: tcm.bg, tabComparisonColor: tcm.color,
+      tabNarrativeBg: tn.bg, tabNarrativeColor: tn.color,
+    };
+  }
+}
+</script>
+</body>
+</html>
