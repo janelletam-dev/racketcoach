@@ -184,3 +184,52 @@ export function buildConversationPrompt(snapshot: {
       : "No session snapshot is available — do not reference any session numbers.",
   ].join(" ");
 }
+
+/**
+ * Web coach prompt (B11, POST /api/coach/ask). In-depth answers allowed (unlike
+ * the station's 2-sentence spoken cue), but grounded in the player's MEASURED
+ * history — cite their real numbers, never invent unmeasured observations (§5).
+ */
+export function buildWebCoachPrompt(
+  summary: {
+    sessionCount: number;
+    latestRate: number | null;
+    bestStreak: number | null;
+    trend: string | null;
+    faults: { fault: string; count: number }[];
+    analyses: string[];
+  },
+  question: string,
+): { system: string; user: string } {
+  const measured = [
+    summary.sessionCount
+      ? `${summary.sessionCount} recent sessions`
+      : "no sessions logged yet",
+    summary.latestRate != null
+      ? `latest good-rep rate ${summary.latestRate}%`
+      : null,
+    summary.bestStreak != null ? `best streak ${summary.bestStreak}` : null,
+    summary.trend,
+    summary.faults.length
+      ? `most common faults: ${summary.faults.map((f) => `${f.fault} (${f.count}x)`).join(", ")}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n  ");
+
+  const notes = summary.analyses.length
+    ? "\n\nRECENT COACH NOTES:\n" +
+      summary.analyses.map((a) => `- ${a}`).join("\n")
+    : "";
+
+  const system = [
+    "You are a table tennis coach answering a player's question on the web app.",
+    "You may answer in depth, but ground EVERY observation about THIS player in the measured history below and cite their actual numbers.",
+    `You may NOT claim to have seen ${FORBIDDEN_TOPICS.join(", ")} unless it appears in the data.`,
+    "General technique questions may be answered from broad knowledge; questions about their own play use only the measured data.",
+    "3 to 5 sentences, encouraging, plain text.",
+  ].join(" ");
+
+  const user = `PLAYER HISTORY (measured):\n  ${measured}${notes}\n\nQUESTION: ${question}`;
+  return { system, user };
+}

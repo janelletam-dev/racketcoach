@@ -1,9 +1,10 @@
-import { and, eq, desc, ne } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { sessions, type SessionRow } from "../db/schema";
 import { buildAnalysisPrompt, type AnalysisContext } from "../coaching/prompts";
 import { linkupQueryForFault } from "../coaching/cueLibrary";
 import { storedSignalsSchema, type StoredSignals } from "../coaching/signals";
+import { loadHistoryExcluding, trendLine } from "./history";
 
 const ANALYZER_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001";
 const CALL_TIMEOUT_MS = 20_000;
@@ -34,14 +35,7 @@ export async function analyzeSession(sessionId: string): Promise<void> {
       .limit(1);
     if (!session) return;
 
-    const history = await db
-      .select()
-      .from(sessions)
-      .where(
-        and(eq(sessions.userId, session.userId), ne(sessions.id, sessionId)),
-      )
-      .orderBy(desc(sessions.playedAt))
-      .limit(5);
+    const history = await loadHistoryExcluding(session.userId, sessionId, 5);
 
     const context = buildContext(session, history);
 
@@ -79,20 +73,11 @@ export async function analyzeSession(sessionId: string): Promise<void> {
   }
 }
 
-function goodRepRate(s: Pick<SessionRow, "goodReps" | "totalReps">): number {
-  return s.totalReps ? s.goodReps / s.totalReps : 0;
-}
-
 function buildContext(session: SessionRow, history: SessionRow[]): AnalysisContext {
-  let trend: string | null = null;
-  if (history.length >= 1) {
-    const oldest = history[history.length - 1]; // history is newest-first
-    const from = Math.round(goodRepRate(oldest) * 100);
-    const to = Math.round(goodRepRate(session) * 100);
-    if (from !== to) {
-      trend = `good-rep rate ${from}% -> ${to}% over the last ${history.length + 1} sessions`;
-    }
-  }
+  // Shared trend assembly (also used by the web coach, B11). `session` is the
+  // just-analyzed one, so it leads the newest-first window.
+  const trend = trendLine([session, ...history]);
+
   let signals: StoredSignals | null = null;
   if (session.signals) {
     try {
