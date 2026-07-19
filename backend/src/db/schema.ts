@@ -38,6 +38,12 @@ export const sessions = sqliteTable("sessions", {
   bestStreak: integer("best_streak").notNull(),
   commonFault: text("common_fault"),
   avgSpeed: real("avg_speed"),
+  durationSeconds: real("duration_seconds"),
+  // Session-analysis pipeline (all nullable; old board payloads still insert).
+  rawPath: text("raw_path"), // Volume path of the raw sensor file
+  analysis: text("analysis"), // Claude's interpretation, JSON string
+  drills: text("drills"), // Linkup results, JSON array string
+  analysisStatus: text("analysis_status"), // pending | done | failed
   createdAt: integer("created_at", { mode: "timestamp_ms" }).$defaultFn(
     () => new Date(),
   ),
