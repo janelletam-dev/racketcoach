@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { getSessions } from "@/lib/api";
 import { parseAnalysis } from "@/lib/analysis";
@@ -30,10 +29,13 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ welcome?: string }>;
 }) {
-  const { token, user } = await requireUser();
-  // First-time users (backend has the sport column, value still null) get the
-  // one-time onboarding. undefined (column not deployed) or a set value skip it.
-  if (user.sport === null) redirect("/onboarding");
+  const { token } = await requireUser();
+  // B10 onboarding gate is intentionally OFF until the backend adds a `sport`
+  // column AND returns it in /api/auth/me. Until then the gate can't fire
+  // correctly, and a redirect here (combined with a streaming loading.tsx) risks
+  // a stuck-loading dashboard. Re-enable once the backend lands:
+  //   const { user } = await requireUser();
+  //   if (user.sport === null) redirect("/onboarding");
 
   const { welcome } = await searchParams;
   const welcomeName = welcome ? COMING_SOON_LABEL[welcome] : undefined;
