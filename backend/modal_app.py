@@ -38,7 +38,13 @@ app = modal.App(APP_NAME)
 image = (
     modal.Image.from_registry("node:20-slim", add_python="3.12")
     .workdir("/app")
-    .env({"DATABASE_URL": "file:/data/racketcoach.db", "PORT": "3001"})
+    .env(
+        {
+            "DATABASE_URL": "file:/data/racketcoach.db",
+            "PORT": "3001",
+            "RAW_DIR": "/data/raw",  # raw sensor files on the Volume
+        }
+    )
     .add_local_dir(
         ".",
         "/app",

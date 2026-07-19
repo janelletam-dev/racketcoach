@@ -1,14 +1,22 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { db } from "../db";
 import { pairings, sessions } from "../db/schema";
+import { analyzeSession } from "../services/analyzeSession";
 
 /**
- * Board endpoint. The coach station (paddle hardware) POSTs here. No user
- * login; the request is authorized by the pairing code. Keys come straight
- * from the hardware and are not renamed.
+ * Board endpoint. The coach station POSTs here. No user login; authorized by
+ * the pairing code. Accepts EITHER the plain JSON body (unchanged) OR a
+ * multipart form: `meta` (the same JSON) + `raw` (binary sensor file).
  */
+
+// Raw sensor files live on the filesystem, never in SQLite. On Modal this is
+// the mounted Volume; locally a project-relative dir.
+const RAW_DIR = process.env.RAW_DIR ?? "./data/raw";
+
 const BodySchema = z.object({
   pairingCode: z.string().min(1),
   date: z
@@ -24,14 +32,40 @@ const BodySchema = z.object({
 export const sessionRoute = new Hono();
 
 sessionRoute.post("/", async (c) => {
-  let json: unknown;
-  try {
-    json = await c.req.json();
-  } catch {
-    return c.json({ error: "invalid JSON body" }, 400);
+  const isMultipart = (c.req.header("content-type") ?? "").includes(
+    "multipart/form-data",
+  );
+
+  // Pull `meta` (JSON) and optional `raw` file from either request shape.
+  let metaRaw: unknown;
+  let rawFile: File | null = null;
+
+  if (isMultipart) {
+    let form;
+    try {
+      form = await c.req.parseBody();
+    } catch {
+      return c.json({ error: "invalid multipart body" }, 400);
+    }
+    const metaField = form["meta"];
+    if (typeof metaField !== "string") {
+      return c.json({ error: "multipart requires a `meta` JSON field" }, 400);
+    }
+    try {
+      metaRaw = JSON.parse(metaField);
+    } catch {
+      return c.json({ error: "`meta` is not valid JSON" }, 400);
+    }
+    if (form["raw"] instanceof File) rawFile = form["raw"];
+  } else {
+    try {
+      metaRaw = await c.req.json();
+    } catch {
+      return c.json({ error: "invalid JSON body" }, 400);
+    }
   }
 
-  const parsed = BodySchema.safeParse(json);
+  const parsed = BodySchema.safeParse(metaRaw);
   if (!parsed.success) {
     return c.json(
       { error: "invalid body", issues: parsed.error.flatten().fieldErrors },
@@ -45,7 +79,6 @@ sessionRoute.post("/", async (c) => {
     .from(pairings)
     .where(eq(pairings.code, body.pairingCode))
     .limit(1);
-
   if (!pairing) {
     return c.json({ error: "unknown pairing code" }, 404);
   }
@@ -56,6 +89,7 @@ sessionRoute.post("/", async (c) => {
     );
   }
 
+  const hasRaw = rawFile != null;
   const [inserted] = await db
     .insert(sessions)
     .values({
@@ -66,8 +100,36 @@ sessionRoute.post("/", async (c) => {
       bestStreak: body.bestStreak,
       commonFault: body.commonFault,
       avgSpeed: body.avgSpeed,
+      analysisStatus: hasRaw ? "pending" : null,
     })
     .returning({ id: sessions.id });
+  const sessionId = inserted.id;
 
-  return c.json({ status: "ok", sessionId: inserted.id }, 200);
+  // With a raw sensor file: persist it, then run analysis fire-and-forget and
+  // 202 (the board never waits on analysis).
+  if (hasRaw && rawFile) {
+    try {
+      await mkdir(RAW_DIR, { recursive: true });
+      const rawPath = join(RAW_DIR, `${sessionId}.bin`);
+      await writeFile(rawPath, Buffer.from(await rawFile.arrayBuffer()));
+      await db
+        .update(sessions)
+        .set({ rawPath })
+        .where(eq(sessions.id, sessionId));
+    } catch (err) {
+      console.error(`[board] raw write failed for ${sessionId}:`, err);
+      await db
+        .update(sessions)
+        .set({ analysisStatus: "failed" })
+        .where(eq(sessions.id, sessionId));
+      return c.json({ status: "ok", sessionId, analysis: "failed" }, 202);
+    }
+    void analyzeSession(sessionId).catch((err) => {
+      console.error(`[analyzer] ${sessionId} failed:`, err);
+    });
+    return c.json({ status: "pending", sessionId }, 202);
+  }
+
+  // Plain JSON payload (no raw file): stored as before, no analysis.
+  return c.json({ status: "ok", sessionId }, 200);
 });

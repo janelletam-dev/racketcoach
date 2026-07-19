@@ -46,6 +46,9 @@ racketcoach.db
 racketcoach.db-shm
 racketcoach.db-wal
 
+# local raw sensor files (RAW_DIR default). On Modal these live on a Volume.
+backend/data/
+
 # python bytecode from modal_app.py
 __pycache__/
 
