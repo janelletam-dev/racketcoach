@@ -2,6 +2,8 @@
 // The browser never calls the backend directly; Next server code does, with
 // the session token read from an httpOnly cookie.
 
+import { redirect } from "next/navigation";
+
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3001";
 
 export type ApiSession = {
@@ -38,12 +40,19 @@ async function backendFetch(path: string, opts: FetchOpts = {}) {
 
 export async function getMe(token: string): Promise<ApiUser | null> {
   const res = await backendFetch("/api/auth/me", { token });
-  return res.ok ? res.json() : null;
+  // 401 means "not signed in" — return null so callers (guards, getCurrentUser)
+  // can decide. Any other non-OK is a real failure; surface it, don't swallow.
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error(`Auth check failed (${res.status})`);
+  return res.json();
 }
 
 export async function getSessions(token: string): Promise<ApiSession[]> {
   const res = await backendFetch("/api/sessions", { token });
-  return res.ok ? res.json() : [];
+  if (res.status === 401) redirect("/signin");
+  // Never map a failure to [] — that renders as a lying "No sessions yet".
+  if (!res.ok) throw new Error(`Failed to load sessions (${res.status})`);
+  return res.json();
 }
 
 export async function getSession(
@@ -51,12 +60,17 @@ export async function getSession(
   id: string,
 ): Promise<ApiSession | null> {
   const res = await backendFetch(`/api/sessions/${id}`, { token });
-  return res.ok ? res.json() : null;
+  if (res.status === 401) redirect("/signin");
+  if (res.status === 404) return null; // genuinely missing — caller can 404
+  if (!res.ok) throw new Error(`Failed to load session (${res.status})`);
+  return res.json();
 }
 
 export async function getMyPairing(token: string): Promise<string | null> {
   const res = await backendFetch("/api/pairings/me", { token });
-  return res.ok ? (await res.json()).code : null;
+  if (res.status === 401) redirect("/signin");
+  if (!res.ok) throw new Error(`Failed to load pairing (${res.status})`);
+  return (await res.json()).code;
 }
 
 export async function claimPairing(
