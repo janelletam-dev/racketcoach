@@ -25,10 +25,14 @@ export type ApiSession = {
   createdAt: string;
 };
 
+// keep in sync with backend/src/db/schema.ts
 export type ApiUser = {
   id: string;
   name: string | null;
   email: string | null;
+  // Chosen sport (B10). undefined = backend column not deployed yet; null =
+  // deployed but not chosen; a string = chosen ("table_tennis" or an interest).
+  sport?: string | null;
 };
 
 type FetchOpts = { token?: string; method?: string; body?: unknown };
@@ -103,4 +107,14 @@ export async function requestMagicLink(email: string): Promise<boolean> {
 export async function demoLogin(): Promise<string | null> {
   const res = await backendFetch("/api/auth/demo", { method: "POST" });
   return res.ok ? (await res.json()).token : null;
+}
+
+/** Set the signed-in user's chosen sport (B10 onboarding). */
+export async function setSport(token: string, sport: string): Promise<boolean> {
+  const res = await backendFetch("/api/auth/sport", {
+    token,
+    method: "POST",
+    body: { sport },
+  });
+  return res.ok;
 }

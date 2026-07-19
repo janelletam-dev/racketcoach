@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { getSessions } from "@/lib/api";
 import { parseAnalysis } from "@/lib/analysis";
@@ -18,8 +19,30 @@ import {
   FaultChart,
 } from "@/app/components/charts";
 
-export default async function DashboardPage() {
-  const { token } = await requireUser();
+const COMING_SOON_LABEL: Record<string, string> = {
+  tennis: "Tennis",
+  badminton: "Badminton",
+  padel: "Padel",
+};
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ welcome?: string }>;
+}) {
+  const { token, user } = await requireUser();
+  // First-time users (backend has the sport column, value still null) get the
+  // one-time onboarding. undefined (column not deployed) or a set value skip it.
+  if (user.sport === null) redirect("/onboarding");
+
+  const { welcome } = await searchParams;
+  const welcomeName = welcome ? COMING_SOON_LABEL[welcome] : undefined;
+  const welcomeNote = welcomeName ? (
+    <div className="rc-card p-4 mb-6 text-rc-ink">
+      {welcomeName} coaching is on the way. You are set up with table tennis for
+      now.
+    </div>
+  ) : null;
 
   const sessions = await getSessions(token);
 
@@ -27,6 +50,7 @@ export default async function DashboardPage() {
     return (
       <main className="flex-1 w-full max-w-5xl mx-auto px-5 sm:px-8 py-10">
         <Header />
+        {welcomeNote}
         <Card className="text-center py-14">
           <SectionLabel>No sessions yet</SectionLabel>
           <p className="text-rc-muted mt-3 mb-6">
@@ -57,6 +81,7 @@ export default async function DashboardPage() {
   return (
     <main className="flex-1 w-full max-w-5xl mx-auto px-5 sm:px-8 py-10">
       <Header />
+      {welcomeNote}
 
       <div className="rc-card p-5 sm:p-6 mb-6 flex items-start gap-4">
         <span className="text-2xl" aria-hidden>
