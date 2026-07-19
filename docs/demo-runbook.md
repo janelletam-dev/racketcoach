@@ -29,29 +29,45 @@ thinks, Claude explains, Linkup proves it."**
 
 ## 2. Blockers before this demo exists
 
-- [ ] **Money-test passes** (P1 GOOD + green NeoPixel on a real swing) — 🙋
-      ← current status: idle green OK, swing packets not arriving; top
-      suspect is paddle secrets.h on EE creds instead of AP creds. Fix:
-      `racketcoach`/`paddle123`, STATION_IP default, reflash.
+- [x] **Money-test PASSED** — 🙋 ✅ `P1 GOOD streak=1` live over the
+      racketcoach AP; goods and faults both scoring. Full loop verified:
+      paddle detect → grade → UDP → station game logic. Tuning note:
+      bench swings read `slowReturn` often (returnTime > 1.2 s when idly
+      waving) — judge against real table play before touching
+      SLOW_RETURN_MS.
 - [x] **Deploy gate merged** (A2 · A4 · A9 · A15 + riders; all acceptance
       checks passed locally; A15 runtime check pends the Modal deploy) — 🤖 cc2
       ✅ f634b00 — bonus: `.env.example` templates un-swallowed from gitignore;
       stale `firmware/sketch/` deleted, template moved to `firmware/paddle/`
-- [ ] **Modal token + `racketcoach-env` secret created** (AUTH_SECRET,
-      FRONTEND_URL, PUBLIC_BACKEND_URL; NO demo/seed flags) — 🙋
-- [ ] **Backend deployed to Modal** + acceptance: boots, `/api/auth/demo`
-      → 403, container restart changes nothing — 🤖 cc2
-- [ ] **Frontend deployed to Vercel** (Root Directory = `frontend`,
-      BACKEND_URL → Modal URL, NEXT_PUBLIC_APP_URL → Vercel URL; then update
-      FRONTEND_URL in the Modal secret) — 🤖 cc2
-- [ ] **A11 fixed** (error honesty — demo blocker: a backend hiccup must not
-      render a lying "No sessions yet" on stage) — 🤖
+- [x] **Modal token + `racketcoach-env` secret created** — 🙋 ✅
+- [x] **Backend deployed to Modal** — 🤖 cc2 ✅ LIVE at
+      `https://janelletam-dev--racketcoach-backend.modal.run` — acceptance
+      green: boots 200, demo 403, ACE123 404 (seed gate holds in prod),
+      bad body 400. Explicit restart-persistence proof pends first real data.
+- [x] **Frontend deployed to Vercel** — 🙋 ✅ LIVE at
+      **`https://racketcoach-pi.vercel.app`** (canonical frontend URL —
+      use everywhere). Wiring checklist:
+      · NEXT_PUBLIC_APP_URL + FRONTEND_URL wired ✅
+      · Resend live: magic-link email arrives and signs in ✅ (auth loop
+        verified end-to-end on prod)
+      · Pairing code CLAIMED (Janelle's account) ✅ — code lives in station
+        secrets.h, kept out of the repo (it authorizes session writes)
+      · NEXT: `<PAIRING_CODE>` + BACKEND_URL into station secrets.h → reflash
+        (bundles the signals-upload upgrade) — 🙋
+      · cc2: demo-data.sh <PAIRING_CODE> + A15 restart proof — 🤖
+- [x] **A11 fixed** — 🤖 cc1 ✅ d256a2c (401→signin, else throw, error.tsx +
+      loading.tsx; compile+logic verified — 30s live check "stop backend →
+      error state renders" still owed once the full stack is up)
 - [ ] **Part B pipeline** (ingest + analyzer + Claude + Linkup + UI) — the
       money shot depends on it — 🤖
 - [ ] **`/api/voice` live** + station voice handoff tested end-to-end — 🤖 + 🔧
       ← still blocked on `voice_coach.h` (never seen; mic driver unverified)
-- [ ] **Mic works** (PDM on I2S0 after the port swap — D2 audio-out is
-      already verified on I2S1) — 🔧 + 🙋
+- [x] **Mic works** — 🔧 + 🙋 ✅ PDM alive on I2S0, VAD captures speech,
+      DC-offset + boot-transient fixes verified; full WAV POST chain proven
+      (404s only because /api/voice doesn't exist yet → B7)
+- [x] **Session model verified on hardware** — ✅ 3 rounds → long-hold at
+      5s (purple) → `Session ended — 3 round(s), 55 s` + upload attempt.
+      Station firmware fully verified: every subsystem, every control.
 
 ## 3. Demo-day prep (the night before)
 
@@ -66,10 +82,20 @@ thinks, Claude explains, Linkup proves it."**
 - [ ] **Charge everything**: paddle battery full + one spare battery/power
       bank; station USB supply; label the two USB cables (station/paddle).
 - [ ] **secrets.h double-check**: paddle = AP creds (`racketcoach`/`paddle123`,
-      STATION_IP default). Station = phone-hotspot creds for the STA side
-      (NOT venue WiFi — assume it's hostile).
-- [ ] **Phone hotspot**: "Maximize Compatibility" ON (2.4GHz), tested with
-      the station the night before. Laptop also joins the hotspot.
+      STATION_IP default) — identical everywhere, never changes. Station's
+      WIFI_SSID/WIFI_PASS are the ONLY location-dependent lines:
+      · home testing → `EE-35KNTX` (current)
+      · venue → `Kindling Member` creds (decided: use venue WiFi)
+      · fallback if venue WiFi misbehaves (captive portal etc.) → phone hotspot
+      Each switch = edit two lines + reflash the station (~2 min). Everything
+      else in secrets.h is location-independent.
+- [ ] **Venue-WiFi sanity check on arrival**: station serial shows an IP on
+      `Kindling Member` AND an NTP-synced upload works (play a test round →
+      `[upload] ... HTTP 200`). If not, swap to hotspot immediately — don't
+      debug venue WiFi with a demo slot approaching.
+- [ ] **Phone hotspot ready as fallback**: "Maximize Compatibility" ON
+      (2.4GHz), tested with the station the night before. Laptop joins the
+      same network as the station either way.
 - [ ] **Rotate/verify keys**: Anthropic + Linkup + ElevenLabs keys are
       dedicated + spend-capped; the interim on-device key is scheduled to
       die after the event.
@@ -95,6 +121,8 @@ thinks, Claude explains, Linkup proves it."**
 | Backend down mid-demo | Dashboard shows the pre-seeded sessions (already persisted). A11 fix means it errors honestly rather than showing "No sessions yet" — say "cloud beat, local loop unaffected" and keep rallying. |
 | Mic/VAD misbehaves | P4 button is the manual voice trigger — use it instead of VAD and don't mention the difference. |
 | Voice chain down entirely | SD cue clips still narrate every fault/win — the coach still "speaks." |
+| Station voice (mic/amp) dead on the day | PLAN B: the coach runs in the browser — laptop mic records, POSTs to the SAME /api/voice, plays the same reply. Same brain, same voice, zero station hardware. (Requires B7 to accept audio/*; "Ask the coach" button in Live Motion — small add once B7 ships.) |
+| ENTIRE station dead | PLAN B-FULL: "station mode" in the browser — paddle's SWING: lines arrive over USB (Live Motion already reads the stream), browser runs leaderboard + cues + posts the session to /api/session with the pairing code. ~1–2h build. DECISION POINT: night before demo — build only if hardware looks flaky; skip if station stays healthy. |
 | Swing detection flaky on the day | `SWING_START_G` lives at the top of paddle.ino — lower to 1.5 and reflash takes 90 seconds. |
 
 ## 6. UGC / demo clip (30–60s, one take)
