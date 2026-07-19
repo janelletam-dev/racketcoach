@@ -8,7 +8,8 @@
     "start": "tsx src/index.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "generate:cues": "tsx scripts/generate-cues.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",

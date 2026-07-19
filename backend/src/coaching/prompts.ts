@@ -156,3 +156,31 @@ export function buildAnalysisPrompt(ctx: AnalysisContext): {
   const user = `MEASURED:\n  ${measured}`;
   return { system, user };
 }
+
+/**
+ * Conversation prompt with the station's aggregate snapshot (B7 /api/voice).
+ * The reply is SPOKEN by the device — plain text only, no markdown/emoji.
+ * The snapshot is the only session data the coach may reference (§5/§6).
+ */
+export function buildConversationPrompt(snapshot: {
+  player?: number;
+  goodReps?: number;
+  streak?: number;
+  bestStreak?: number;
+  avgSpeed?: number;
+}): string {
+  const parts: string[] = [];
+  if (snapshot.goodReps != null) parts.push(`good reps ${snapshot.goodReps}`);
+  if (snapshot.streak != null) parts.push(`current streak ${snapshot.streak}`);
+  if (snapshot.bestStreak != null)
+    parts.push(`best streak ${snapshot.bestStreak}`);
+  if (snapshot.avgSpeed != null)
+    parts.push(`station-reported average swing speed ${snapshot.avgSpeed}`);
+  return [
+    CONVERSATION_SYSTEM,
+    "Your answer is spoken aloud by a small speaker: plain conversational text only — no markdown, no lists, no emoji.",
+    parts.length
+      ? `Station snapshot for this player (the ONLY session data you may reference): ${parts.join(", ")}.`
+      : "No session snapshot is available — do not reference any session numbers.",
+  ].join(" ");
+}

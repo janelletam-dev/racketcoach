@@ -7,6 +7,7 @@ import { authRoute } from "./routes/auth";
 import { sessionsRoute } from "./routes/sessions";
 import { pairingsRoute } from "./routes/pairings";
 import { cameraRoute } from "./routes/camera";
+import { voiceRoute } from "./routes/voice";
 
 const app = new Hono();
 
@@ -22,6 +23,7 @@ app.route("/api/auth", authRoute);
 app.route("/api/sessions", sessionsRoute); // list/detail (plural)
 app.route("/api/pairings", pairingsRoute);
 app.route("/api/camera", cameraRoute); // browser (Live Motion) camera metrics
+app.route("/api/voice", voiceRoute); // station + mini voice coach (B7)
 
 const port = Number(process.env.PORT ?? 3001);
 serve({ fetch: app.fetch, hostname: "0.0.0.0", port });
