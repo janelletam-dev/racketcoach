@@ -9,6 +9,7 @@
 process.env.DATABASE_URL = "file:./racketcoach.db";
 process.env.VOICE_DEVICE_TOKEN = "test-device-token";
 process.env.ELEVENLABS_API_KEY = "test-el-key";
+process.env.ELEVENLABS_VOICE_ID_MALE = "test-voice-id"; // station voice (no generic fallback)
 process.env.ANTHROPIC_API_KEY = "test-an-key";
 
 const { voiceRoute, parseDeviceQuery } = await import("../src/routes/voice");

@@ -28,6 +28,11 @@ if (!config.elevenLabsApiKey) {
   console.error("ELEVENLABS_API_KEY missing (backend/.env or Modal secret).");
   process.exit(1);
 }
+const voiceId = config.elevenLabsVoiceId;
+if (!voiceId) {
+  console.error("ELEVENLABS_VOICE_ID or ELEVENLABS_VOICE_ID_MALE required.");
+  process.exit(1);
+}
 
 await mkdir(OUT_DIR, { recursive: true });
 
@@ -38,7 +43,7 @@ const clips: [string, string][] = [
 
 for (const [name, text] of clips) {
   const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${config.elevenLabsVoiceId}?output_format=mp3_44100_64`,
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_64`,
     {
       method: "POST",
       headers: {

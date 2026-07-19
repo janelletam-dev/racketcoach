@@ -23,10 +23,11 @@ export const config = {
   get elevenLabsApiKey(): string | undefined {
     return process.env.ELEVENLABS_API_KEY;
   },
-  get elevenLabsVoiceId(): string {
-    // One voice everywhere: instant SD/LittleFS cues and the thinking coach
-    // must be audibly the same person (§8 tier 1).
-    return process.env.ELEVENLABS_VOICE_ID ?? "21m00Tcm4TlvDq8ikWAM";
+  get elevenLabsVoiceId(): string | undefined {
+    // Station / cue voice (§8 tier 1: the instant SD cues and the thinking
+    // coach must be the same person). Falls back to the MALE id (Miles), which
+    // matches the recorded SD clips. No generic-voice fallback.
+    return process.env.ELEVENLABS_VOICE_ID ?? process.env.ELEVENLABS_VOICE_ID_MALE;
   },
   /** Male/female voice IDs for the web "Ask your coach" TTS (/api/coach/speak). */
   get elevenLabsVoiceIdMale(): string | undefined {

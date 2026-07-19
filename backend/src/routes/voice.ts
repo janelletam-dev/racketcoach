@@ -39,7 +39,8 @@ voiceRoute.post("/", async (c) => {
     return c.json({ error: "unauthorized" }, 401);
   }
 
-  if (!config.elevenLabsApiKey || !config.anthropicApiKey) {
+  const voiceId = config.elevenLabsVoiceId;
+  if (!config.elevenLabsApiKey || !config.anthropicApiKey || !voiceId) {
     return c.json({ error: "voice pipeline keys not configured" }, 503);
   }
 
@@ -59,7 +60,7 @@ voiceRoute.post("/", async (c) => {
     const answer = await askCoach(question, q);
     console.log(`[voice] A: ${answer}`);
 
-    const mp3 = await textToSpeech(answer, config.elevenLabsVoiceId);
+    const mp3 = await textToSpeech(answer, voiceId);
     return c.body(mp3, 200, {
       "Content-Type": "audio/mpeg",
       "Content-Length": String(mp3.byteLength),
