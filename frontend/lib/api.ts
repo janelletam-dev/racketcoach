@@ -130,15 +130,21 @@ export type CoachAnswer = {
   unavailable?: boolean;
 };
 
-/** Ask the web coach a question (B11). POST /api/coach/ask → { answer }. */
+/** One prior turn of the chat, mapped straight into Claude's messages array. */
+export type ChatTurn = { role: "user" | "assistant"; content: string };
+
+/** Ask the web coach a question (B11). POST /api/coach/ask → { answer }.
+ *  `history` (B11.2) is optional and additive — a backend that doesn't yet read
+ *  it strips the extra field, so this stays non-breaking. */
 export async function askCoach(
   token: string,
   question: string,
+  history: ChatTurn[] = [],
 ): Promise<CoachAnswer> {
   const res = await backendFetch("/api/coach/ask", {
     token,
     method: "POST",
-    body: { question },
+    body: history.length ? { question, history } : { question },
   });
   if (res.status === 404) return { unavailable: true };
   if (res.status === 401) return { error: "Please sign in again." };
