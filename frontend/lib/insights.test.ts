@@ -5,6 +5,8 @@ import {
   improvementLine,
   currentGoal,
   faultBreakdown,
+  deltaVsPrevious,
+  bestRate,
 } from "./insights";
 import type { ApiSession } from "./api";
 
@@ -21,6 +23,7 @@ function session(overrides: Partial<ApiSession> = {}): ApiSession {
     commonFault: null,
     avgSpeed: null,
     durationSeconds: null,
+    signals: null,
     analysis: null,
     drills: null,
     analysisStatus: null,
@@ -81,6 +84,42 @@ describe("currentGoal", () => {
     expect(
       currentGoal([session({ goodReps: 9, totalReps: 10, bestStreak: 6 })]),
     ).toMatch(/best streak of 6/i);
+  });
+});
+
+describe("deltaVsPrevious", () => {
+  // Newest-first, like the API returns.
+  const older = session({ id: "a", playedAt: "2026-07-01T00:00:00Z", goodReps: 4, totalReps: 10 }); // 40%
+  const newer = session({ id: "b", playedAt: "2026-07-02T00:00:00Z", goodReps: 7, totalReps: 10 }); // 70%
+
+  it("is null for the first (oldest) session", () => {
+    expect(deltaVsPrevious([newer, older], "a")).toBeNull();
+  });
+  it("is the rate change from the previous session", () => {
+    expect(deltaVsPrevious([newer, older], "b")).toBeCloseTo(0.3);
+  });
+  it("is negative when the rate dropped", () => {
+    const hi = session({ id: "h", playedAt: "2026-07-01T00:00:00Z", goodReps: 8, totalReps: 10 }); // 80%
+    const lo = session({ id: "l", playedAt: "2026-07-02T00:00:00Z", goodReps: 5, totalReps: 10 }); // 50%, newer
+    expect(deltaVsPrevious([lo, hi], "l")).toBeCloseTo(-0.3);
+  });
+  it("is null when the id is not in the list", () => {
+    expect(deltaVsPrevious([newer, older], "zzz")).toBeNull();
+  });
+});
+
+describe("bestRate", () => {
+  it("is 0 with no sessions", () => {
+    expect(bestRate([])).toBe(0);
+  });
+  it("is the highest good-rep rate across sessions", () => {
+    expect(
+      bestRate([
+        session({ goodReps: 4, totalReps: 10 }),
+        session({ goodReps: 9, totalReps: 10 }),
+        session({ goodReps: 6, totalReps: 10 }),
+      ]),
+    ).toBeCloseTo(0.9);
   });
 });
 

@@ -46,6 +46,28 @@ export function currentGoal(sessions: SessionRow[]): string {
   return `Beat your best streak of ${latest.bestStreak}.`;
 }
 
+/**
+ * Good-rep-rate change from the chronologically previous session to this one.
+ * Positive = improved. Null when this is the first session (nothing to compare).
+ * Robust to input order — sorts by playedAt internally.
+ */
+export function deltaVsPrevious(
+  sessions: SessionRow[],
+  sessionId: string,
+): number | null {
+  const chrono = [...sessions].sort(
+    (a, b) => +new Date(a.playedAt) - +new Date(b.playedAt),
+  );
+  const idx = chrono.findIndex((s) => s.id === sessionId);
+  if (idx <= 0) return null; // not found, or the first session
+  return goodRepRate(chrono[idx]) - goodRepRate(chrono[idx - 1]);
+}
+
+/** Highest good-rep rate across all sessions (0 when there are none). */
+export function bestRate(sessions: SessionRow[]): number {
+  return sessions.reduce((max, s) => Math.max(max, goodRepRate(s)), 0);
+}
+
 /** Count how often each fault shows up, most common first. */
 export function faultBreakdown(
   sessions: SessionRow[],

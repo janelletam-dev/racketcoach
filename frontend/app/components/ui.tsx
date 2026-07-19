@@ -41,6 +41,59 @@ export function StatTile({
   );
 }
 
+/**
+ * Good-rep-rate ring. Pure SVG, server-renderable. `rate` is 0..1; the arc
+ * sweeps clockwise from the top and the percent sits in the middle.
+ */
+export function ProgressRing({
+  rate,
+  size = 128,
+  label,
+}: {
+  rate: number;
+  size?: number;
+  label?: ReactNode;
+}) {
+  const clamped = Math.max(0, Math.min(1, rate));
+  const stroke = 11;
+  const r = (100 - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference * (1 - clamped);
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+        <circle
+          cx="50"
+          cy="50"
+          r={r}
+          fill="none"
+          className="stroke-rc-line"
+          strokeWidth={stroke}
+        />
+        <circle
+          cx="50"
+          cy="50"
+          r={r}
+          fill="none"
+          className="stroke-rc-purple"
+          strokeWidth={stroke}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="rc-term text-[2rem] leading-none text-rc-ink">
+          {Math.round(clamped * 100)}%
+        </span>
+        {label ? (
+          <span className="rc-label !text-[0.68rem] mt-1">{label}</span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 type ButtonVariant = "indigo" | "amber" | "ghost";
 
 const variantClass: Record<ButtonVariant, string> = {

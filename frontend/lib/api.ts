@@ -17,6 +17,9 @@ export type ApiSession = {
   commonFault: string | null;
   avgSpeed: number | null;
   durationSeconds: number | null;
+  // §2 signal aggregates as a JSON string ({ imu?, camera? }); parse with
+  // lib/signals. Null on old/demo sessions; a real station upload fills it.
+  signals: string | null;
   // Analysis pipeline (B1). `analysis` + `drills` arrive as JSON strings; parse
   // with lib/analysis. Null until the analyzer runs.
   analysis: string | null;

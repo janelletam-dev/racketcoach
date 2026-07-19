@@ -33,11 +33,17 @@ const tooltipStyle = {
 
 export function FormScoreChart({
   data,
+  highlightIndex,
+  height = 220,
 }: {
   data: { label: string; rate: number }[];
+  // When set, that point gets a larger magenta dot — used on the session page to
+  // mark "this session" within the trend.
+  highlightIndex?: number;
+  height?: number;
 }) {
   return (
-    <ResponsiveContainer width="100%" height={220}>
+    <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: -18 }}>
         <CartesianGrid stroke={GRID} strokeDasharray="4 4" vertical={false} />
         <XAxis dataKey="label" tick={tickStyle} stroke={GRID} />
@@ -58,7 +64,21 @@ export function FormScoreChart({
           dataKey="rate"
           stroke="#7c3aed"
           strokeWidth={3}
-          dot={{ fill: "#7c3aed", r: 4, strokeWidth: 0 }}
+          dot={(props) => {
+            const { cx, cy, index } = props;
+            const hi = index === highlightIndex;
+            return (
+              <circle
+                key={`dot-${index}`}
+                cx={cx}
+                cy={cy}
+                r={hi ? 7 : 4}
+                fill={hi ? "#db2777" : "#7c3aed"}
+                stroke={hi ? "#ffffff" : "none"}
+                strokeWidth={hi ? 2 : 0}
+              />
+            );
+          }}
           activeDot={{ r: 6 }}
           isAnimationActive={false}
         />
