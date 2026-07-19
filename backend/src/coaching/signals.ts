@@ -82,3 +82,33 @@ export const FORBIDDEN_TOPICS: readonly string[] = [
   "ball placement",
   "grip",
 ];
+
+/**
+ * Station-aggregated IMU signals sent in the board POST (B2-addendum), rolled
+ * up from the per-swing §2 packets. All fields optional: an ABSENT field means
+ * it was not measured and must never be defaulted.
+ */
+export const boardSignalsSchema = z
+  .object({
+    avgSwingSpeed: z.number().describe("mean peak accel over the session, g"),
+    avgConsistency: z.number().min(0).max(100).describe("mean consistency, 0-100"),
+    faceDroppedRate: z
+      .number()
+      .min(0)
+      .max(1)
+      .describe("fraction of swings with a dropped paddle face"),
+    avgReturnMs: z.number().describe("mean return-to-ready time, ms"),
+  })
+  .partial();
+export type BoardSignals = z.infer<typeof boardSignalsSchema>;
+
+/** Camera metrics submitted by /api/camera (B9). Partial: absent = not measured. */
+export const cameraMetricsSchema = cameraSignalsSchema.partial();
+export type CameraMetrics = z.infer<typeof cameraMetricsSchema>;
+
+/** What the session `signals` column stores: IMU aggregates + camera metrics. */
+export const storedSignalsSchema = z.object({
+  imu: boardSignalsSchema.optional(),
+  camera: cameraMetricsSchema.optional(),
+});
+export type StoredSignals = z.infer<typeof storedSignalsSchema>;

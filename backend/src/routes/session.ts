@@ -5,6 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { db } from "../db";
 import { pairings, sessions } from "../db/schema";
+import { boardSignalsSchema } from "../coaching/signals";
 import { analyzeSession } from "../services/analyzeSession";
 
 /**
@@ -27,6 +28,8 @@ const BodySchema = z.object({
   bestStreak: z.number().int().nonnegative(),
   commonFault: z.string(),
   avgSpeed: z.number(),
+  // Optional §2 aggregates (B2-addendum). Absent = not measured.
+  signals: boardSignalsSchema.optional(),
 });
 
 export const sessionRoute = new Hono();
@@ -100,6 +103,7 @@ sessionRoute.post("/", async (c) => {
       bestStreak: body.bestStreak,
       commonFault: body.commonFault,
       avgSpeed: body.avgSpeed,
+      signals: body.signals ? JSON.stringify({ imu: body.signals }) : null,
       analysisStatus: hasRaw ? "pending" : null,
     })
     .returning({ id: sessions.id });

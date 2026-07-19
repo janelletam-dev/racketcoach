@@ -3,6 +3,7 @@ import { db } from "../db";
 import { sessions, type SessionRow } from "../db/schema";
 import { buildAnalysisPrompt, type AnalysisContext } from "../coaching/prompts";
 import { linkupQueryForFault } from "../coaching/cueLibrary";
+import { storedSignalsSchema, type StoredSignals } from "../coaching/signals";
 
 const ANALYZER_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001";
 const CALL_TIMEOUT_MS = 20_000;
@@ -92,6 +93,16 @@ function buildContext(session: SessionRow, history: SessionRow[]): AnalysisConte
       trend = `good-rep rate ${from}% -> ${to}% over the last ${history.length + 1} sessions`;
     }
   }
+  let signals: StoredSignals | null = null;
+  if (session.signals) {
+    try {
+      const parsed = storedSignalsSchema.safeParse(JSON.parse(session.signals));
+      if (parsed.success) signals = parsed.data;
+    } catch {
+      // malformed signals JSON — treat as not measured
+    }
+  }
+
   return {
     goodReps: session.goodReps,
     totalReps: session.totalReps,
@@ -100,6 +111,7 @@ function buildContext(session: SessionRow, history: SessionRow[]): AnalysisConte
     durationSeconds: session.durationSeconds,
     commonFault: session.commonFault,
     trend,
+    signals,
   };
 }
 

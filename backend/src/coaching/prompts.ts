@@ -1,4 +1,4 @@
-import type { Signals } from "./signals";
+import type { Signals, StoredSignals } from "./signals";
 import { SIGNAL_GROUPS, FORBIDDEN_TOPICS } from "./signals";
 import { presentGroups, CUE_LIBRARY } from "./cueLibrary";
 
@@ -91,7 +91,36 @@ export type AnalysisContext = {
   durationSeconds: number | null;
   commonFault: string | null;
   trend: string | null; // e.g. "good-rep rate 52% -> 71% over the last 5 sessions"
+  signals: StoredSignals | null; // §2 aggregates; only present fields are shown
 };
+
+/** Render the stored §2 signal aggregates into MEASURED lines. Present fields
+ * only — an absent field is never shown or defaulted (guardrail). */
+export function renderSignalsMeasured(s: StoredSignals | null): string[] {
+  const lines: string[] = [];
+  if (!s) return lines;
+  if (s.imu) {
+    const i = s.imu;
+    const parts: string[] = [];
+    if (i.avgSwingSpeed != null) parts.push(`avgSwingSpeed: ${i.avgSwingSpeed}g`);
+    if (i.avgConsistency != null) parts.push(`avgConsistency: ${i.avgConsistency}`);
+    if (i.faceDroppedRate != null)
+      parts.push(`faceDroppedRate: ${Math.round(i.faceDroppedRate * 100)}%`);
+    if (i.avgReturnMs != null) parts.push(`avgReturnMs: ${i.avgReturnMs}ms`);
+    if (parts.length) lines.push(parts.join("   "));
+  }
+  if (s.camera) {
+    const c = s.camera;
+    const parts: string[] = [];
+    if (c.elbowGap != null) parts.push(`elbowGap: ${c.elbowGap}`);
+    if (c.contactInFront != null) parts.push(`contactInFront: ${c.contactInFront}`);
+    if (c.shoulderRotation != null)
+      parts.push(`shoulderRotation: ${c.shoulderRotation}deg`);
+    if (c.followThrough != null) parts.push(`followThrough: ${c.followThrough}`);
+    if (parts.length) lines.push(parts.join("   "));
+  }
+  return lines;
+}
 
 /**
  * Post-session analysis prompt. Grounded on the measured summary only (rep
@@ -108,6 +137,7 @@ export function buildAnalysisPrompt(ctx: AnalysisContext): {
     : 0;
   const measured = [
     `goodReps: ${ctx.goodReps}   totalReps: ${ctx.totalReps}   goodRepRate: ${rate}%   bestStreak: ${ctx.bestStreak}`,
+    ...renderSignalsMeasured(ctx.signals),
     ctx.avgSpeed != null ? `avgSpeed: ${ctx.avgSpeed}` : null,
     ctx.durationSeconds != null ? `durationSeconds: ${ctx.durationSeconds}` : null,
     ctx.commonFault ? `mostCommonFault: ${ctx.commonFault}` : null,

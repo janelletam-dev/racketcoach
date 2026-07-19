@@ -39,6 +39,9 @@ export const sessions = sqliteTable("sessions", {
   commonFault: text("common_fault"),
   avgSpeed: real("avg_speed"),
   durationSeconds: real("duration_seconds"),
+  // §2 signal aggregates JSON: { imu?: {...}, camera?: {...} }. An absent field
+  // means it was not measured — never defaulted (guardrail).
+  signals: text("signals"),
   // Session-analysis pipeline (all nullable; old board payloads still insert).
   rawPath: text("raw_path"), // Volume path of the raw sensor file
   analysis: text("analysis"), // Claude's interpretation, JSON string
