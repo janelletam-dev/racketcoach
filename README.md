@@ -13,102 +13,95 @@
 
 RacketCoach is an AI table-tennis coach that lives on your paddle and tracks your form over time.
 
-Physical paddles (motion sensors) detect a player's swings and grade their form. A coach station finishes each practice session and POSTs a summary to this web app. RacketCoach stores the sessions, shows progress over time, and lets players see improvement and resume where they left off.
+Physical paddles (motion sensors) detect a player's swings and grade their form. A coach station finishes each practice session and POSTs a summary to the backend. RacketCoach stores the sessions, shows progress over time, and lets players see improvement and resume where they left off.
 
-## The flow
+## Architecture
 
-1. The coach station shows a QR code for a 6-character pairing code.
-2. The player scans it on their phone, lands here already signed in, and the paddle is linked to their account.
-3. After each practice, the coach station POSTs a session summary to `/api/session` using that pairing code.
-4. The player opens their dashboard and sees form score, best streak, common faults, and a plain-language read on how they are improving.
-
-## Stack
-
-- **Next.js 16** (App Router, TypeScript) for the whole app, frontend and API routes in one codebase
-- **SQLite** via **libSQL** (`@libsql/client`) with **Drizzle ORM**, a plain file, no separate database service
-- **Auth.js v5** email magic-link sign-in
-- **Recharts** for the progress charts
-- **Tailwind CSS v4** with a retro, pixel-arcade look (fitting, since table tennis is basically Pong)
-- **Modal** (modal.com) for hosting: the built Next.js server runs on Modal, with the SQLite file on a Modal Volume
-
-### Why this shape
-
-Everything lives in one place. The app is one Next.js deploy and the data is one SQLite file that sits on a Modal Volume, so there is no separate database account to manage. Local development uses a local SQLite file and needs zero external setup.
+This is a monorepo with a clean frontend / backend split.
 
 ```
   Coach station (paddle)
         |
         |  POST /api/session   (keyed by 6-char pairing code)
         v
-  +-------------------------------------------+
-  |  Next.js app  (runs on Modal in prod)     |
-  |    /            landing                   |
-  |    /pair        QR pairing                |
-  |    /dashboard   sessions + charts         |
-  |    /session/:id one session breakdown     |
-  |    /api/session board write endpoint      |
-  +-------------------------------------------+
-        |
-        v
-  SQLite file  ->  local: ./racketcoach.db
-                   Modal:  /data/racketcoach.db  (on a Volume)
+  +-----------------------------+          +-----------------------------+
+  |  backend/  (Hono API)       |          |  frontend/  (Next.js UI)    |
+  |  runs on MODAL              | <------- |  server-side calls only     |
+  |   - SQLite on a Volume      |  HTTP    |   - dashboard, charts       |
+  |   - /api/session (board)    |  Bearer  |   - /pair QR                |
+  |   - token auth (magic link) |  token   |   - session detail          |
+  |   - sessions + pairings     |          |   - holds token in a cookie |
+  +-----------------------------+          +-----------------------------+
+```
+
+- **`backend/`** is a standalone **Hono (TypeScript) API service** deployed on **Modal**. It owns the database, the board `/api/session` endpoint, auth, and all data access. SQLite lives on a Modal Volume, so there is no separate database account.
+- **`frontend/`** is the **Next.js** UI. It never touches the database directly. It calls the backend over HTTP from server code, carrying the user's session token (kept in an httpOnly cookie). The browser never talks to the backend directly.
+- **Auth is token-based.** The backend issues a signed session token on magic-link verify (or via the dev demo login). The frontend stores it in an httpOnly cookie and sends it as a Bearer token on server-side calls.
+
+```
+racketcoach/
+├── backend/        # Hono API, deployed on Modal (owns the data)
+│   ├── src/        # index, routes/, db/, auth, mailer, code
+│   ├── scripts/    # migrate, seed
+│   ├── drizzle/    # SQL migrations
+│   └── modal_app.py
+├── frontend/       # Next.js UI (calls the backend)
+│   ├── app/        # pages + components
+│   └── lib/        # api client, session, insights, format
+└── README.md
 ```
 
 ## Local setup
 
-Prereqs: Node 18+ and npm.
+Prereqs: Node 18+ and npm. Run the backend first, then the frontend.
+
+### 1. Backend (terminal 1)
 
 ```bash
-# 1. install
+cd backend
 npm install
-
-# 2. create your env file (see the table below)
-cp .env.example .env.local
-
-# 3. create the database schema
-npm run db:migrate
-
-# 4. seed a demo user with 5 rising sessions so the charts look real
-npm run db:seed
-
-# 5. run it
-npm run dev
+npm run db:migrate      # create the SQLite schema
+npm run db:seed         # demo user + 5 rising sessions + pairing code ACE123
+npm run dev             # API on http://localhost:3001
 ```
 
-Open http://localhost:3000.
+### 2. Frontend (terminal 2)
 
-For a fast look at the product, use the **Sign in as demo user** button on the sign-in page (dev only). It signs you into the seeded account so the dashboard and charts render immediately. Real magic-link sign-in is also wired: enter an email, and in development the sign-in link is printed to your terminal (no email service required). In production the link is sent through Resend.
+```bash
+cd frontend
+npm install
+cp .env.example .env.local     # defaults point at the local backend
+npm run dev                    # UI on http://localhost:3000
+```
+
+Open http://localhost:3000. Use **Sign in as demo user** on the sign-in page (dev only) to land on the seeded dashboard. Real magic-link sign-in is wired too: enter an email, and in development the backend prints the sign-in link to its console (no email service needed). In production the link is sent through Resend.
 
 ## Environment variables
 
-Put these in `.env.local`. An `.env.example` is included.
+### backend/.env is read from the shell or Modal secrets
 
 | Variable | Required | What it is |
 | --- | --- | --- |
-| `DATABASE_URL` | yes | libSQL/SQLite URL. Local: `file:./racketcoach.db`. On Modal: `file:/data/racketcoach.db`. |
-| `AUTH_SECRET` | yes | Auth.js session secret. Generate with `npx auth secret` or `openssl rand -base64 33`. |
-| `AUTH_URL` | dev | Base URL Auth.js runs at, e.g. `http://localhost:3000`. |
-| `NEXT_PUBLIC_APP_URL` | yes | Public base URL used to build the pairing QR code, e.g. `http://localhost:3000`. Baked in at build time. |
-| `RESEND_API_KEY` | prod only | Resend API key for sending magic-link emails in production. If unset, the link is logged to the server console instead. |
-| `EMAIL_FROM` | prod only | Sender for magic-link emails, e.g. `RacketCoach <onboarding@resend.dev>`. |
+| `DATABASE_URL` | yes | libSQL/SQLite URL. Local: `file:./racketcoach.db`. Modal: `file:/data/racketcoach.db`. |
+| `AUTH_SECRET` | yes | Secret used to sign session + magic-link tokens. `openssl rand -base64 33`. |
+| `PORT` | no | API port (default 3001). |
+| `FRONTEND_URL` | yes | Frontend base URL, for magic-link redirects back to the UI. |
+| `PUBLIC_BACKEND_URL` | yes | This backend's own public URL, used to build the magic-link verify URL. |
+| `RESEND_API_KEY` | prod only | Resend API key. If unset, the sign-in link is logged to the backend console. |
+| `EMAIL_FROM` | prod only | Magic-link sender, e.g. `RacketCoach <onboarding@resend.dev>`. |
 
-## Scripts
+### frontend/.env.local
 
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Start the dev server. |
-| `npm run build` | Production build. |
-| `npm run start` | Start the production server. |
-| `npm run db:migrate` | Apply the schema to `DATABASE_URL`. |
-| `npm run db:seed` | Insert the demo user, a claimed pairing code (`ACE123`), and 5 rising sessions. |
+| Variable | Required | What it is |
+| --- | --- | --- |
+| `BACKEND_URL` | yes | Backend API base URL (server-side only). Local: `http://localhost:3001`. Prod: your Modal URL. |
+| `NEXT_PUBLIC_APP_URL` | yes | Public base URL of the frontend, used for the pairing QR code. Baked in at build. |
 
-## Board API
+## Board API (on the backend)
 
-The coach station calls this. No user login is involved. The request is authorized by the pairing code.
+The coach station calls this. No user login; the request is authorized by the pairing code. Keys come straight from the hardware and are not renamed.
 
-`POST /api/session`
-
-Body (these keys come from the hardware and are not renamed):
+`POST {BACKEND_URL}/api/session`
 
 ```json
 {
@@ -122,16 +115,14 @@ Body (these keys come from the hardware and are not renamed):
 }
 ```
 
-Behavior:
+- Claimed code -> inserts a session for that user, returns `200`.
+- Existing but unclaimed code -> returns `202`, stores nothing.
+- Unknown code -> `404`. Invalid body -> `400`.
 
-- If `pairingCode` maps to a claimed user, a session row is inserted for that user and the endpoint returns `200`.
-- If the code exists but is not yet claimed, nothing is stored and the endpoint returns `202` (the board can keep sending; sessions start landing once a player claims the code).
-- Invalid bodies return `400`.
-
-Sample call (after `npm run db:seed`, the code `ACE123` is claimed by the demo user):
+Sample call (after `npm run db:seed`, `ACE123` is claimed by the demo user):
 
 ```bash
-curl -X POST http://localhost:3000/api/session \
+curl -X POST http://localhost:3001/api/session \
   -H "Content-Type: application/json" \
   -d '{
     "pairingCode": "ACE123",
@@ -148,53 +139,41 @@ Refresh `/dashboard` and the new session appears.
 
 ## Pairing flow
 
-- `/pair` shows a 6-character code and a QR code that encodes `NEXT_PUBLIC_APP_URL/pair?code=CODE`.
-- Opening `/pair?code=CODE` while signed in claims that code for the current user.
+- `/pair` shows a 6-character code and a QR encoding `NEXT_PUBLIC_APP_URL/pair?code=CODE`.
+- Opening `/pair?code=CODE` while signed in claims that code for the current user (the frontend calls the backend to claim it).
 - In a real session the coach station shows the QR, the player scans it on their phone, lands on `/pair?code=CODE` already signed in, and the paddle is linked.
 
-## Deploy to Modal
+## Deploy
 
-The whole app runs on Modal as a single web server, with the SQLite file persisted on a Modal Volume. The Modal wrapper lives in `modal_app.py`.
-
-> Note: these steps run against your own Modal account and were not executed from this repo. Run them yourself. Everything above (local run, seed, board POST, pairing) is what has been verified locally.
+### Backend -> Modal
 
 ```bash
-# 1. install the Modal CLI and sign in (opens a browser)
+cd backend
 pip install modal
 modal token new
-
-# 2. store the runtime secrets Modal will inject (AUTH_SECRET, etc.)
 modal secret create racketcoach-env \
-  AUTH_SECRET=your-secret \
-  DATABASE_URL=file:/data/racketcoach.db
-
-# 3. hot-reload dev against Modal (optional)
-modal serve modal_app.py
-
-# 4. deploy
+  AUTH_SECRET=$(openssl rand -base64 33) \
+  FRONTEND_URL=https://your-frontend-url \
+  PUBLIC_BACKEND_URL=https://your-workspace--racketcoach-backend.modal.run
 modal deploy modal_app.py
 ```
 
-How the Modal wrapper is set up (see `modal_app.py`):
+`backend/modal_app.py` runs the Hono API on Modal with the SQLite file on a Volume, pinned to a single container (`min_containers=1, max_containers=1`) because a Modal Volume does no file locking and SQLite must have one writer. Per-request concurrency comes from `@modal.concurrent`, not extra replicas. Migration and seed run on first boot.
 
-- Base image `node:20-slim` with Python added, app files copied in with `copy=True`, then `npm ci` and `npm run build` run at image build time.
-- `NEXT_PUBLIC_APP_URL` is set at build time (it is baked into the client bundle), so it is passed into the build step, not just runtime.
-- A Volume is mounted at `/data`, and `DATABASE_URL` points at `file:/data/racketcoach.db`. Migration and seed run on first boot.
-- The container runs `next start -H 0.0.0.0 -p 3000` and is exposed with `@modal.web_server(3000, startup_timeout=120)`.
-- The function is pinned to a single container (`min_containers=1, max_containers=1`). This matters: a Modal Volume does no file locking and is last-write-wins, so SQLite must have exactly one writer. Per-request concurrency comes from `@modal.concurrent`, not from extra replicas.
+> Note: the Modal deploy was not run from this repo (it needs `modal token new` on your account). The local run above is what has been verified. Treat the Modal deploy as yours to run.
 
-If you later outgrow single-container SQLite, swap `DATABASE_URL` to a hosted libSQL/Postgres. The app code does not change.
+### Frontend -> Vercel (or Railway / Render / Modal)
 
-## Data model
+Deploy `frontend/` as a normal Next.js app. Set `BACKEND_URL` to your Modal backend URL and `NEXT_PUBLIC_APP_URL` to the frontend's own URL.
 
-SQLite tables via Drizzle:
+## Data model (backend SQLite)
 
-- Auth.js tables (`user`, `account`, `session`, `verificationToken`). The `user` table is the player profile.
-- `pairings`: `code` (pk), `user_id` (null until claimed), `created_at`.
-- `sessions`: `id`, `user_id`, `played_at`, `good_reps`, `total_reps`, `best_streak`, `common_fault`, `avg_speed`, `created_at`.
+- `user`: id, name, email, created_at
+- `pairings`: code (pk), user_id (null until claimed), created_at
+- `sessions`: id, user_id, played_at, good_reps, total_reps, best_streak, common_fault, avg_speed, created_at
 
-Access is scoped in the query layer: a signed-in user only ever reads their own sessions, and the board endpoint writes with a server-side database connection keyed by pairing code.
+Access is scoped in the API: a Bearer token identifies the user, and every read filters by that user. The board endpoint writes with a server-side connection keyed by pairing code.
 
 ## Design
 
-The look is a retro, pixel-arcade theme: a halftone gradient background, a pixel display font for headings and the wordmark, a terminal font for stats and labels, and clean white cards for the readable data. Table tennis is the original arcade game, so the aesthetic fits the product.
+Retro pixel-arcade theme: a halftone gradient background, a pixel display font for headings and the wordmark, a terminal font for stats, and clean white cards for readable data. Table tennis is the original arcade game, so the aesthetic fits.
