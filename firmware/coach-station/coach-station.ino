@@ -118,6 +118,10 @@ struct Player {
   float    speedSum;
   char     lastFault[24];
   uint16_t faultCounts[4];   // tallied per round → commonFault in the upload
+  float         consSum;     // §2 signal aggregates from paddle packets —
+  unsigned long retSum;      // uploaded so the analyzer's MEASURED block
+  int           faceDrops;   // gets real signals, not just game stats
+  int           sigCount;
 };
 
 // ── Game state ────────────────────────────────────────────────────────────────
@@ -132,7 +136,10 @@ const int           WIN_STREAK = 5;
 // ── Session state — a session = all rounds until the players stop ────────────
 // Short press: start/end a round. LONG press (idle): end the session → one
 // aggregated upload to the dashboard. Idle 10 min → session auto-closes.
-struct SessionTotals { int good; int total; float speedSum; uint16_t faults[4]; };
+struct SessionTotals {
+  int good; int total; float speedSum; uint16_t faults[4];
+  float consSum; unsigned long retSum; int faceDrops; int sigCount;
+};
 bool          sessionActive = false;
 unsigned long sessionStart  = 0;
 unsigned long lastRoundEnd  = 0;
@@ -226,6 +233,7 @@ void clearPlayer(Player& pl, int id) {
   pl.speedSum    = 0.0f;
   pl.lastFault[0] = 0;
   for (int i = 0; i < 4; i++) pl.faultCounts[i] = 0;
+  pl.consSum = 0; pl.retSum = 0; pl.faceDrops = 0; pl.sigCount = 0;
   // bestStreak intentionally NOT cleared here
 }
 
@@ -248,7 +256,10 @@ bool isoTimeNow(char* out, size_t n) {
 void sendSessionSummary(int idx, const char* code, unsigned long durSec) {
   SessionTotals& t  = sTot[idx];
   Player&        pl = p[idx];
-  if (t.total <= 0) return;   // player never hit — nothing to record
+  if (t.total <= 0) {          // player never hit — nothing to record
+    Serial.printf("[upload] P%d skipped — no swings this session\n", pl.id);
+    return;
+  }
   if (WiFi.status() != WL_CONNECTED) {
     Serial.printf("[upload] P%d skipped — no internet (game unaffected)\n", pl.id);
     return;
@@ -262,14 +273,24 @@ void sendSessionSummary(int idx, const char* code, unsigned long durSec) {
   for (int i = 0; i < 4; i++)
     if (t.faults[i] > bc) { bc = t.faults[i]; best = i; }
 
-  char body[360];
+  // §2 signal aggregates — only included when actually measured (guardrail:
+  // absent field = not measured; the analyzer must never see invented data)
+  char sig[150] = "";
+  if (t.sigCount > 0) {
+    snprintf(sig, sizeof(sig),
+      ",\"signals\":{\"avgSwingSpeed\":%.2f,\"avgConsistency\":%.0f,"
+      "\"faceDroppedRate\":%.2f,\"avgReturnMs\":%lu}",
+      t.speedSum / t.total, t.consSum / t.sigCount,
+      (float)t.faceDrops / t.total, t.retSum / (unsigned long)t.sigCount);
+  }
+  char body[512];
   snprintf(body, sizeof(body),
     "{\"pairingCode\":\"%s\",\"date\":\"%s\",\"goodReps\":%d,\"totalReps\":%d,"
     "\"bestStreak\":%d,\"commonFault\":\"%s\",\"avgSpeed\":%.2f,"
-    "\"durationSeconds\":%lu}",
+    "\"durationSeconds\":%lu%s}",
     code, iso, t.good, t.total, pl.bestStreak,
     best >= 0 ? FAULT_NAMES[best] : "none",
-    t.speedSum / t.total, durSec);
+    t.speedSum / t.total, durSec, sig);
 
   String url = String(BACKEND_URL) + "/api/session";
   WiFiClientSecure tlsC;
@@ -336,9 +357,13 @@ void endRound(int winnerId) {
 
   // Fold this round into the session totals (uploaded once, at session end).
   for (int i = 0; i < 2; i++) {
-    sTot[i].good     += p[i].goodReps;
-    sTot[i].total    += p[i].totalReps;
-    sTot[i].speedSum += p[i].speedSum;
+    sTot[i].good      += p[i].goodReps;
+    sTot[i].total     += p[i].totalReps;
+    sTot[i].speedSum  += p[i].speedSum;
+    sTot[i].consSum   += p[i].consSum;
+    sTot[i].retSum    += p[i].retSum;
+    sTot[i].faceDrops += p[i].faceDrops;
+    sTot[i].sigCount  += p[i].sigCount;
     for (int f = 0; f < 4; f++) sTot[i].faults[f] += p[i].faultCounts[f];
   }
   lastRoundEnd = millis();
@@ -385,12 +410,18 @@ void processMsg() {
 
   const char* result    = doc["result"]    | "fault";
   const char* faultType = doc["faultType"] | "none";
-  float       speed     = doc["speed"]     | 0.0f;
+  float       speed     = doc["speed"]       | 0.0f;
+  float       cons      = doc["consistency"] | -1.0f;
+  const char* face      = doc["paddleFace"]  | "";
+  long        retMs     = doc["returnTime"]  | -1;
 
   if (!roundActive) { Serial.println("Msg ignored: no active round"); return; }
 
   pl.totalReps++;
   pl.speedSum += speed;
+  if (cons  >= 0)     { pl.consSum += cons; pl.sigCount++; }
+  if (retMs >= 0)     pl.retSum += (unsigned long)retMs;
+  if (face[0] == 'd') pl.faceDrops++;   // "dropped"
 
   if (strcmp(result, "good") == 0) {
     pl.goodReps++;
@@ -676,6 +707,9 @@ void setup() {
   initMic();   // must allocate I2S0 in PDM RX mode (amp is on I2S1)
   drawIdle();
   Serial.println("Coach station ready. Press the reset button to start a round.");
+#if defined(ELEVENLABS_API_KEY) && defined(TTS_SMOKE_TEST)
+  ttsSmokeTest(audio, sdOk);   // speaks one line at boot — proves TTS→SD→amp
+#endif
 }
 
 // ── Arduino loop ──────────────────────────────────────────────────────────────

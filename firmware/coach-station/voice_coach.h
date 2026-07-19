@@ -177,6 +177,52 @@ static void _writeWavHdr(uint8_t* h, int samples, int rate) {
   memcpy(h+36, "data",4); memcpy(h+40, &dataB, 4);
 }
 
+// ── TTS smoke test (optional, temporary) ─────────────────────────────────────
+// Proves the one unverified hardware link — MP3 download → SD → amp — by
+// calling ElevenLabs directly with a fixed line at boot. Enable by defining
+// ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID and TTS_SMOKE_TEST in secrets.h.
+// Remove the key from the device once B7 (/api/voice) is live — the backend
+// owns all third-party keys in the real design.
+#if defined(ELEVENLABS_API_KEY) && defined(TTS_SMOKE_TEST)
+bool ttsSmokeTest(Audio& audio, bool sdOk) {
+  if (WiFi.status() != WL_CONNECTED) { Serial.println("TTS test: no WiFi"); return false; }
+  if (!sdOk)                         { Serial.println("TTS test: no SD");   return false; }
+  WiFiClientSecure tls; tls.setInsecure();
+  HTTPClient http;
+  String url = "https://api.elevenlabs.io/v1/text-to-speech/"
+               ELEVENLABS_VOICE_ID "?output_format=mp3_44100_64";
+  if (!http.begin(tls, url)) return false;
+  http.addHeader("xi-api-key", ELEVENLABS_API_KEY);
+  http.addHeader("Content-Type", "application/json");
+  const char* body =
+    "{\"text\":\"Coach online. Nice paddle. Let's warm up those forehands.\","
+    "\"model_id\":\"eleven_turbo_v2_5\"}";
+  Serial.println("TTS test: requesting speech from ElevenLabs…");
+  int code = http.POST((uint8_t*)body, strlen(body));
+  if (code != 200) {
+    Serial.printf("TTS test failed: HTTP %d (check key/voice id)\n", code);
+    http.end(); return false;
+  }
+  SD.mkdir("/tmp");
+  SD.remove("/tmp/tts.mp3");
+  File f = SD.open("/tmp/tts.mp3", FILE_WRITE);
+  if (!f) { http.end(); return false; }
+  int len = http.getSize(); WiFiClient* s = http.getStreamPtr();
+  uint8_t chunk[512]; int rem = len; unsigned long dl = millis() + 20000;
+  while ((len < 0 || rem > 0) && millis() < dl) {
+    int av = s->available();
+    if (av > 0) { int rn = s->readBytes(chunk, min(av, 512)); f.write(chunk, rn); if (len > 0) rem -= rn; }
+    else { if (!s->connected()) break; delay(1); }
+  }
+  f.close(); http.end();
+  Serial.println("TTS test: playing — you should hear the coach");
+  audio.connecttoFS(SD, "/tmp/tts.mp3");
+  audioPlaying = true;
+  vadSuppress(8000);
+  return true;
+}
+#endif
+
 // ── voicePost() ───────────────────────────────────────────────────────────────
 // POST the recorded WAV (player context as query params) to the backend
 // /api/voice. Streams the MP3 response body to SD → /tmp/resp.mp3, then

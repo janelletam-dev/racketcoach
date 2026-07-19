@@ -131,7 +131,7 @@ never force-push. If you are a session not listed here, you are read-only.
 | --- | --- | --- |
 | **cc1** | `frontend/` | committing docs/ + firmware/ WIP authored by the firmware Claude |
 | **cc2** | `backend/` | Modal + Vercel deploys, Modal secret updates |
-| **firmware Claude** (Cowork session) | `firmware/`, `docs/` authorship | writes to the working tree via the device bridge; never commits — cc1 commits its output |
+| **firmware Claude** (Cowork session) | `firmware/`, `docs/`, `browser/` authorship | writes to the working tree via the device bridge; never commits — cc1 commits its output (secret-scan each pass) |
 | Teammate (human) | anything | via PR, not direct push to main |
 
 ## Who builds what (current status)

@@ -248,6 +248,14 @@ keep working and may skip analysis or run it on the JSON alone.
 **Accept:** README curl still returns as documented; multipart upload creates a
 pending session and a file under `/data/raw/`.
 
+### B2-addendum: session `signals` aggregates (firmware side SHIPPED)
+The station now includes an optional `signals` object in its session POST —
+`{avgSwingSpeed, avgConsistency, faceDroppedRate, avgReturnMs}` — aggregated
+from the per-swing §2 packets it receives. Backend: accept it on the session
+routes (nullable `signals` text/JSON column or equivalent), and B3 builds its
+MEASURED block from it. Guardrail semantics: the field is ABSENT when nothing
+was measured — never default it; absent = not measured.
+
 ### B3. Analyzer service — `backend/src/services/analyzeSession.ts`
 The first real member of `services/` (this is what finally justifies the folder).
 **Coaching content (cues, prompts, guardrails, signal schema) comes from

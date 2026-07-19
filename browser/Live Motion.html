@@ -96,7 +96,7 @@ canvas.overlay { transform: scaleX(-1); }
     <div class="header">
       <h2>Racket IMU</h2>
       <div class="header-actions">
-        <input type="text" id="boardIp" class="ip-input" placeholder="racketcoach.local or 192.168.1.42" value="racketcoach.local"/>
+        <input type="text" id="boardIp" class="ip-input" placeholder="racketcoach-paddle.local or 192.168.1.42" value="racketcoach-paddle.local"/>
         <button class="btn" id="connectWifiBtn" onclick="connectBoardWifi()">Connect via Wi-Fi</button>
         <button class="btn" id="connectBtn" onclick="connectBoard()">Connect via USB</button>
         <div class="pill"><div class="dot" id="boardDot"></div><span id="boardStatusTxt">Not connected</span></div>
@@ -131,6 +131,31 @@ function lmConf(lm){return lm.visibility!==undefined?lm.visibility:1;}
 function drawBone(ctx,a,b,color,W,H){if(lmConf(a)<0.4||lmConf(b)<0.4)return;ctx.beginPath();ctx.moveTo(a.x*W,a.y*H);ctx.lineTo(b.x*W,b.y*H);ctx.strokeStyle=color+'99';ctx.lineWidth=3;ctx.stroke();}
 function drawDot(ctx,lm,color,r,W,H){if(lmConf(lm)<0.4)return;ctx.beginPath();ctx.arc(lm.x*W,lm.y*H,r,0,Math.PI*2);ctx.fillStyle=color+'cc';ctx.fill();ctx.strokeStyle='#fff7';ctx.lineWidth=2;ctx.stroke();}
 function labelDot(ctx,lm,txt,color,W,H){if(lmConf(lm)<0.4)return;ctx.fillStyle=color;ctx.font='bold 11px sans-serif';ctx.fillText(txt,lm.x*W+14,lm.y*H+4);}
+// ── Virtual paddle — anchored to the playing wrist, aimed along the forearm ──
+// EMA-smoothed so pose jitter doesn't make the paddle tremble.
+let padX=0,padY=0,padA=0,padInit=false;
+function drawPaddle(ctx,elbow,wrist,W,H){
+  const ex=elbow.x*W,ey=elbow.y*H,wx=wrist.x*W,wy=wrist.y*H;
+  const dx=wx-ex,dy=wy-ey;
+  const L=Math.hypot(dx,dy); if(L<10)return;
+  const ang=Math.atan2(dy,dx);
+  if(!padInit){padX=wx;padY=wy;padA=ang;padInit=true;}
+  else{
+    padX+=(wx-padX)*0.35; padY+=(wy-padY)*0.35;
+    let d=ang-padA; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
+    padA+=d*0.35;
+  }
+  const hL=L*0.32,bR=L*0.42;
+  ctx.save();
+  ctx.translate(padX,padY); ctx.rotate(padA);
+  ctx.fillStyle='#c8935a';                              // wooden handle
+  ctx.fillRect(0,-L*0.05,hL,L*0.10);
+  ctx.beginPath();                                      // red rubber blade
+  ctx.ellipse(hL+bR*0.9,0,bR,bR*0.82,0,0,Math.PI*2);
+  ctx.fillStyle='rgba(211,47,47,0.85)'; ctx.fill();
+  ctx.lineWidth=4; ctx.strokeStyle='#7f1d1d'; ctx.stroke();
+  ctx.restore();
+}
 const vid=document.getElementById('vid'),canvas=document.getElementById('overlay'),ctx=canvas.getContext('2d');
 let fpsSmooth=0,lastT=0;
 function setCamStatus(t,live){document.getElementById('camStatusTxt').textContent=t;document.getElementById('camDot').classList.toggle('live',live);}
@@ -157,6 +182,10 @@ function onResults(results){
   labelDot(ctx,lm[LM.RWR],'R Wrist','#f97316',W,H);
   labelDot(ctx,lm[LM.LEL],'L Elbow','#34d399',W,H);
   labelDot(ctx,lm[LM.REL],'R Elbow','#f472b6',W,H);
+  // Virtual paddle follows whichever wrist is tracking better (handedness-free)
+  const useRight=lmConf(lm[LM.RWR])>=lmConf(lm[LM.LWR]);
+  const pw=useRight?lm[LM.RWR]:lm[LM.LWR], pe=useRight?lm[LM.REL]:lm[LM.LEL];
+  if(lmConf(pw)>0.5&&lmConf(pe)>0.5)drawPaddle(ctx,pe,pw,W,H);
   function fill(xId,yId,cId,landmark){const c=lmConf(landmark);document.getElementById(xId).textContent=c>0.4?landmark.x.toFixed(3):'-';document.getElementById(yId).textContent=c>0.4?'y '+landmark.y.toFixed(3):'x / y';document.getElementById(cId).style.width=(c*100).toFixed(0)+'%';}
   fill('lwX','lwY','lwConf',lm[LM.LWR]);
   fill('rwX','rwY','rwConf',lm[LM.RWR]);
