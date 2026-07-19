@@ -131,3 +131,21 @@ export function primaryResult(s: Signals): PrimaryResult {
   }
   return { kind: "fault", entry: faults[0] };
 }
+
+/**
+ * Map the board's free-text `commonFault` to a Linkup drill-search query (§8:
+ * the fault -> Linkup-query mapping lives here). Falls back to a generic query
+ * so an unrecognised fault still returns sourced drills.
+ */
+export function linkupQueryForFault(commonFault: string | null): string {
+  const f = (commonFault ?? "").trim().toLowerCase();
+  const table: Record<string, string> = {
+    "late paddle": "table tennis contact point timing meet the ball in front drills",
+    "slow return": "table tennis ready position recovery between shots drills",
+    "open face": "table tennis paddle angle close the racket topspin drills beginner",
+    "paddle dropped": "table tennis keep paddle up brush topspin drills beginner",
+    "wrist snap": "table tennis forehand wrist technique drills",
+    "inconsistent": "table tennis consistent forehand stroke control drills beginner",
+  };
+  return table[f] ?? `table tennis drills ${f || "forehand technique"} beginner`;
+}

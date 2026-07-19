@@ -81,3 +81,48 @@ export const CONVERSATION_SYSTEM = [
   "Do NOT invent observations about the player's last swing beyond the measured signals.",
   "Keep it to two sentences, spoken and encouraging.",
 ].join(" ");
+
+/** Measured inputs available to the post-session analyzer (B3). */
+export type AnalysisContext = {
+  goodReps: number;
+  totalReps: number;
+  bestStreak: number;
+  avgSpeed: number | null;
+  durationSeconds: number | null;
+  commonFault: string | null;
+  trend: string | null; // e.g. "good-rep rate 52% -> 71% over the last 5 sessions"
+};
+
+/**
+ * Post-session analysis prompt. Grounded on the measured summary only (rep
+ * totals, best streak, avg swing speed, the paddle's most-common fault, trend),
+ * forbids unmeasured topics (§5), and asks for structured JSON so the dashboard
+ * can render a "Coach's read" card. Same honest rule as the reactive cue.
+ */
+export function buildAnalysisPrompt(ctx: AnalysisContext): {
+  system: string;
+  user: string;
+} {
+  const rate = ctx.totalReps
+    ? Math.round((ctx.goodReps / ctx.totalReps) * 100)
+    : 0;
+  const measured = [
+    `goodReps: ${ctx.goodReps}   totalReps: ${ctx.totalReps}   goodRepRate: ${rate}%   bestStreak: ${ctx.bestStreak}`,
+    ctx.avgSpeed != null ? `avgSpeed: ${ctx.avgSpeed}` : null,
+    ctx.durationSeconds != null ? `durationSeconds: ${ctx.durationSeconds}` : null,
+    ctx.commonFault ? `mostCommonFault: ${ctx.commonFault}` : null,
+    ctx.trend ? `trend: ${ctx.trend}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n  ");
+
+  const system = [
+    "You are a table tennis coach reviewing a beginner's practice session.",
+    "Base every observation ONLY on the measured summary given by the user (rep totals, best streak, average swing speed, the most common fault the paddle detected, and the trend).",
+    `You may NOT claim to have seen ${FORBIDDEN_TOPICS.join(", ")} — those are not measured.`,
+    'Respond with ONLY a JSON object: {"summary": one encouraging sentence on how the session went, "faultDetail": one sentence naming the most common fault and why it matters, "focusAdvice": one concrete thing to focus on next session}. No text outside the JSON.',
+  ].join(" ");
+
+  const user = `MEASURED:\n  ${measured}`;
+  return { system, user };
+}
