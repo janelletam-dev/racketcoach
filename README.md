@@ -60,10 +60,13 @@ Prereqs: Node 18+ and npm. Run the backend first, then the frontend.
 ```bash
 cd backend
 npm install
+cp .env.example .env    # then set AUTH_SECRET (required). ALLOW_DEMO_LOGIN=1 is preset for local dev
 npm run db:migrate      # create the SQLite schema
 npm run db:seed         # demo user + 5 rising sessions + pairing code ACE123
 npm run dev             # API on http://localhost:3001
 ```
+
+`AUTH_SECRET` is mandatory: the backend refuses to start without it (no insecure fallback). The demo-login button needs `ALLOW_DEMO_LOGIN=1` in `.env` (preset in the example); it is deliberately absent in production, where `/api/auth/demo` returns 403.
 
 ### 2. Frontend (terminal 2)
 

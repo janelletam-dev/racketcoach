@@ -22,6 +22,7 @@ Note: this file was not executed from the repo. Run it against your own Modal
 account. The API is verified locally; the Modal deploy is yours to run.
 """
 
+import os
 import subprocess
 
 import modal
@@ -74,6 +75,9 @@ volume = modal.Volume.from_name("racketcoach-data", create_if_missing=True)
 def api():
     # The Volume is mounted only at runtime, so migrate + seed happen here.
     subprocess.run("npm run db:migrate", shell=True, cwd="/app", check=True)
-    subprocess.run("npm run db:seed", shell=True, cwd="/app", check=False)
+    # Seed only when explicitly asked (SEED_DEMO=1). Keep this flag OUT of the
+    # Modal secret so a restart against a non-empty prod DB changes nothing.
+    if os.environ.get("SEED_DEMO") == "1":
+        subprocess.run("npm run db:seed", shell=True, cwd="/app", check=False)
     # Start the Hono API. It binds 0.0.0.0 on $PORT. Non-blocking.
     subprocess.Popen("npm run start", shell=True, cwd="/app")

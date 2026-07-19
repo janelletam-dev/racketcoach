@@ -3,7 +3,17 @@ import { eq } from "drizzle-orm";
 import { db } from "./db";
 import { users } from "./db/schema";
 
-const SECRET = process.env.AUTH_SECRET ?? "dev-insecure-secret-change-me";
+function requireAuthSecret(): string {
+  const s = process.env.AUTH_SECRET;
+  if (!s) {
+    throw new Error(
+      "AUTH_SECRET is required. Copy backend/.env.example to backend/.env and set it (dev), or set it in the Modal secret (prod).",
+    );
+  }
+  return s;
+}
+// Fail fast at startup: no insecure fallback.
+const SECRET = requireAuthSecret();
 
 const SESSION_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
 const LOGIN_TTL = 15 * 60 * 1000; // 15 minutes

@@ -35,6 +35,21 @@ pairingsRoute.post("/claim", async (c) => {
   if (!parsed.success) return c.json({ error: "code required" }, 400);
 
   const code = parsed.data.code.toUpperCase();
+
+  // Claim succeeds if the code is unclaimed or already yours; a code owned by
+  // another player cannot be hijacked.
+  const [existing] = await db
+    .select()
+    .from(pairings)
+    .where(eq(pairings.code, code))
+    .limit(1);
+  if (existing?.userId && existing.userId !== uid) {
+    return c.json(
+      { error: "pairing code already claimed by another player" },
+      409,
+    );
+  }
+
   await db
     .insert(pairings)
     .values({ code, userId: uid })

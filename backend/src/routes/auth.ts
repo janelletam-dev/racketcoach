@@ -48,8 +48,8 @@ authRoute.get("/verify", async (c) => {
 
 // Dev-only shortcut: return a session token for the seeded demo user.
 authRoute.post("/demo", async (c) => {
-  if (process.env.NODE_ENV === "production") {
-    return c.json({ error: "not available in production" }, 403);
+  if (process.env.ALLOW_DEMO_LOGIN !== "1") {
+    return c.json({ error: "demo login is disabled" }, 403);
   }
   let [demo] = await db
     .select()
